@@ -21,7 +21,7 @@ describe('@bible-strong/avatar-web', () => {
     })
 
     expect(document.querySelector('#avatar svg')).not.toBeNull()
-    expect(document.querySelectorAll('#avatar svg > path')).toHaveLength(37)
+    expect(document.querySelectorAll('#avatar svg > g > path')).toHaveLength(37)
     expect(document.querySelector('[role="img"]')?.getAttribute('aria-label')).toBe(
       'Procedural avatar'
     )

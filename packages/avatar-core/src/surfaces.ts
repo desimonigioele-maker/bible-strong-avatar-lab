@@ -1,7 +1,56 @@
 import type { Point3 } from './geometry'
 
 export type SurfaceType =
-  'sphere' | 'mickey' | 'cursor' | 'cube' | 'capsule' | 'cylinder' | 'cone' | 'diamond'
+  | 'sphere'
+  | 'mickey'
+  | 'cursor'
+  | 'cube'
+  | 'capsule'
+  | 'cylinder'
+  | 'cone'
+  | 'diamond'
+  | 'blob'
+  | 'cloud'
+  | 'drop'
+  | 'flower'
+  | 'dot'
+
+/** Visual character of the WebGL dot: classic is firmer, softer is plush, plush is toy-like. */
+export type DotSoftness = 'classic' | 'softer' | 'plush'
+
+/** Softness applied when a dot surface omits it (also the editor default). */
+export const defaultDotSoftness: DotSoftness = 'plush'
+
+/** Parameters of the WebGL "dot" surface (OpenAI-dots-style 3D blob). */
+export type DotSurfaceParams = {
+  color: string
+  wobble: number
+  sssColor: string
+  sssStrength: number
+  eyeOffsetX: number
+  eyeOffsetY: number
+  seed: number
+  /** Roughness/SSS character preset; defaults to 'plush' when omitted. */
+  softness?: DotSoftness
+}
+
+/** Softness tuning knobs: raise SSS / lower roughness for the plush dots look. */
+export const dotSoftnessPresets = {
+  classic: { uSSSStrength: 0.55, roughness: 0.32 },
+  softer: { uSSSStrength: 0.7, roughness: 0.28 },
+  plush: { uSSSStrength: 0.95, roughness: 0.24 },
+} as const satisfies Record<DotSoftness, { uSSSStrength: number; roughness: number }>
+
+export const defaultDotSurfaceParams: DotSurfaceParams = {
+  color: '#ff2fb4',
+  wobble: 0.055,
+  sssColor: '#ff77cf',
+  sssStrength: 0.95,
+  eyeOffsetX: 0,
+  eyeOffsetY: 0,
+  seed: 1,
+  softness: 'plush',
+}
 
 export type SurfaceConfig = {
   type: SurfaceType
@@ -12,6 +61,16 @@ export type SurfaceConfig = {
   morphRoundness?: number
   tipRoundness?: number
   baseRoundness?: number
+  /** Deterministic displacement seed for organic surfaces (blob, cloud). */
+  seed?: number
+  /** Displacement amplitude for organic surfaces, 0 to 1. */
+  wobble?: number
+  /** Petal count for the flower surface. */
+  petals?: number
+  /** Petal depth ratio for the flower surface, 0 to 1. */
+  petalDepth?: number
+  /** WebGL dot-surface parameters; required meaning only when type is 'dot'. */
+  dot?: DotSurfaceParams
 }
 
 export type SurfaceSample = {
@@ -44,6 +103,42 @@ export const surfacePresets: Record<SurfaceType, SurfaceConfig> = {
     baseRoundness: 0.45,
   },
   diamond: { type: 'diamond', width: 235, height: 260, depth: 215, roundness: 0 },
+  blob: {
+    type: 'blob',
+    width: 250,
+    height: 235,
+    depth: 235,
+    roundness: 1,
+    seed: 7,
+    wobble: 0.14,
+  },
+  cloud: {
+    type: 'cloud',
+    width: 260,
+    height: 205,
+    depth: 215,
+    roundness: 1,
+    seed: 3,
+    wobble: 0.2,
+  },
+  drop: { type: 'drop', width: 230, height: 270, depth: 230, roundness: 1 },
+  flower: {
+    type: 'flower',
+    width: 255,
+    height: 250,
+    depth: 205,
+    roundness: 1,
+    petals: 6,
+    petalDepth: 0.32,
+  },
+  dot: {
+    type: 'dot',
+    width: 240,
+    height: 240,
+    depth: 240,
+    roundness: 1,
+    dot: { ...defaultDotSurfaceParams },
+  },
 }
 
 export const surfaceLabels: Record<SurfaceType, string> = {
@@ -55,6 +150,47 @@ export const surfaceLabels: Record<SurfaceType, string> = {
   cylinder: 'Cylindre',
   cone: 'Cône',
   diamond: 'Diamant',
+  blob: 'Blob',
+  cloud: 'Nuage',
+  drop: 'Goutte',
+  flower: 'Fleur',
+  dot: 'Dot 3D',
+}
+
+const hexColorPattern = /^#[0-9a-f]{6}$/i
+
+export const parseDotParams = (value: unknown): DotSurfaceParams | undefined => {
+  if (!value || typeof value !== 'object') return undefined
+  const candidate = value as Partial<DotSurfaceParams>
+  const numbers = [
+    candidate.wobble,
+    candidate.sssStrength,
+    candidate.eyeOffsetX,
+    candidate.eyeOffsetY,
+    candidate.seed,
+  ]
+  if (numbers.some(entry => !Number.isFinite(entry))) return undefined
+  if (typeof candidate.color !== 'string' || !hexColorPattern.test(candidate.color))
+    return undefined
+  if (typeof candidate.sssColor !== 'string' || !hexColorPattern.test(candidate.sssColor))
+    return undefined
+  if (
+    candidate.softness !== undefined &&
+    candidate.softness !== 'classic' &&
+    candidate.softness !== 'softer' &&
+    candidate.softness !== 'plush'
+  )
+    return undefined
+  return {
+    color: candidate.color,
+    wobble: Math.max(0, Math.min(2, candidate.wobble!)),
+    sssColor: candidate.sssColor,
+    sssStrength: Math.max(0, Math.min(2, candidate.sssStrength!)),
+    eyeOffsetX: Math.max(-2, Math.min(2, candidate.eyeOffsetX!)),
+    eyeOffsetY: Math.max(-2, Math.min(2, candidate.eyeOffsetY!)),
+    seed: Math.max(-1000, Math.min(1000, candidate.seed!)),
+    ...(candidate.softness === undefined ? {} : { softness: candidate.softness }),
+  }
 }
 
 const signedPower = (value: number, exponent: number) =>
@@ -141,6 +277,67 @@ const lpSurface = (
 
 const diamond = (config: SurfaceConfig, longitude: number, latitude: number): Point3 => {
   return lpSurface(config, longitude, latitude, diamondExponent(config))
+}
+
+/**
+ * Organic primitives derived from an ellipsoid with deterministic radial
+ * displacement. They give avatars the soft, hand-placed look of plush toys
+ * while staying fully procedural and stable across frames.
+ */
+const organic = (config: SurfaceConfig, longitude: number, latitude: number): Point3 => {
+  const base = superellipsoid(longitude, latitude, config.width, config.height, config.depth, 1, 1)
+  const seed = config.seed ?? 0
+
+  switch (config.type) {
+    case 'blob': {
+      const wobble = config.wobble ?? 0.12
+      const swell =
+        Math.sin(longitude * 3 + seed * 1.7) * 0.5 +
+        Math.sin(latitude * 2 - seed * 2.3) * 0.3 +
+        Math.sin(longitude * 5 + latitude * 3 + seed) * 0.2
+      const factor = 1 + wobble * swell
+      return [base[0] * factor, base[1] * factor, base[2] * factor]
+    }
+    case 'cloud': {
+      const wobble = config.wobble ?? 0.18
+      const lateral = Math.max(0, Math.cos(latitude))
+      const lumps =
+        Math.cos(3 * longitude + seed) * 0.5 +
+        Math.cos(5 * longitude - seed * 1.3) * 0.28 +
+        Math.sin(2 * longitude + latitude * 2 + seed * 0.7) * 0.22
+      const factor = 1 + wobble * lumps * lateral
+      const bottomFlatten = base[1] < 0 ? 0.86 : 1
+      return [base[0] * factor, base[1] * bottomFlatten, base[2] * factor]
+    }
+    case 'drop': {
+      const progress = (latitude + Math.PI / 2) / Math.PI
+      const radial = dropRadialScale(progress)
+      return [base[0] * radial, base[1], base[2] * radial]
+    }
+    case 'flower': {
+      const petals = Math.max(2, Math.round(config.petals ?? 6))
+      const petalDepth = Math.max(0, Math.min(1, config.petalDepth ?? 0.32))
+      const lateral = Math.max(0, Math.cos(latitude))
+      const scallop = (Math.cos(petals * longitude) * 0.5 + 0.5) ** 0.8
+      const factor = 1 + petalDepth * scallop * lateral
+      return [base[0] * factor, base[1], base[2] * factor]
+    }
+    default:
+      return base
+  }
+}
+
+/** Radial profile of the teardrop surface: narrow bottom, full rounded top. */
+export const dropRadialScale = (progress: number) =>
+  0.42 + 0.58 * Math.sin(Math.min(1, Math.max(0, progress) * 1.06) * Math.PI) ** 0.75
+
+/** Vertical mapping of the teardrop profile, matching the ellipsoid base. */
+const dropProfileAt = (config: SurfaceConfig, progress: number): RadialProfile => {
+  const clampedProgress = Math.max(0, Math.min(1, progress))
+  return {
+    radiusScale: dropRadialScale(clampedProgress),
+    verticalProgress: (1 - Math.cos(clampedProgress * Math.PI)) / 2,
+  }
 }
 
 const cube = (config: SurfaceConfig, longitude: number, latitude: number): Point3 =>
@@ -337,6 +534,16 @@ export const surfacePointAt = (
       return diamond(config, longitude, latitude)
     case 'capsule':
       return capsule(config, longitude, latitude)
+    case 'blob':
+    case 'cloud':
+    case 'drop':
+    case 'flower':
+      return organic(config, longitude, latitude)
+    case 'dot':
+      // The dot surface renders in WebGL; SVG-side sampling treats it as a
+      // plain ellipsoid so eye placement and editor overlays stay consistent
+      // with the 3D pose.
+      return superellipsoid(longitude, latitude, width, height, depth, 1, 1)
     case 'cone': {
       const progress = (latitude + Math.PI / 2) / Math.PI
       const profile = morphedConeProfileAt(config, progress)
@@ -570,6 +777,15 @@ export const surfaceFrontSampleAt = (
 
     case 'diamond':
       return lpFrontSample(config, x, y, diamondExponent(config), diamondNormal)
+
+    case 'drop':
+      return radialProfileFrontSample(config, x, y, dropProfileAt, 1)
+
+    case 'blob':
+    case 'cloud':
+    case 'flower':
+    case 'dot':
+      return ellipsoidFrontSample(x, y, radiusX, radiusY, radiusZ)
   }
 }
 
@@ -582,7 +798,7 @@ export const surfaceNormalAt = (
 
   // An ellipsoid has a cheap exact normal. This is also the overwhelmingly
   // common path for the default spherical head.
-  if (config.type === 'sphere' || config.type === 'mickey') {
+  if (config.type === 'sphere' || config.type === 'mickey' || config.type === 'dot') {
     const halfWidth = config.width / 2 || 1
     const halfHeight = config.height / 2 || 1
     const halfDepth = config.depth / 2 || 1
@@ -619,7 +835,7 @@ export const surfaceSampleAt = (
 ): SurfaceSample => {
   const point = surfacePointAt(config, longitude, latitude)
 
-  if (config.type === 'sphere' || config.type === 'mickey') {
+  if (config.type === 'sphere' || config.type === 'mickey' || config.type === 'dot') {
     const halfWidth = config.width / 2 || 1
     const halfHeight = config.height / 2 || 1
     const halfDepth = config.depth / 2 || 1

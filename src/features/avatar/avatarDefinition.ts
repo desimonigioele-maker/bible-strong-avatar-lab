@@ -31,6 +31,11 @@ const mapSurface = <TType extends SurfaceType>(
   ...(surface.morphRoundness === undefined ? {} : { morphRoundness: surface.morphRoundness }),
   ...(surface.tipRoundness === undefined ? {} : { tipRoundness: surface.tipRoundness }),
   ...(surface.baseRoundness === undefined ? {} : { baseRoundness: surface.baseRoundness }),
+  ...(surface.seed === undefined ? {} : { seed: surface.seed }),
+  ...(surface.wobble === undefined ? {} : { wobble: surface.wobble }),
+  ...(surface.petals === undefined ? {} : { petals: surface.petals }),
+  ...(surface.petalDepth === undefined ? {} : { petalDepth: surface.petalDepth }),
+  ...(surface.dot === undefined ? {} : { dot: { ...surface.dot } }),
 })
 
 const mapExpression = (expression: Expression): AvatarExpressionDefinition => ({
@@ -185,6 +190,7 @@ export const createAvatarDefinition = ({
     colors: {
       body: avatar.colors.body as HexColor,
       eyes: avatar.colors.eyes as HexColor,
+      ...(avatar.texture.type === 'none' ? {} : { texture: { ...avatar.texture } }),
     },
     expressions,
     expressionOrder: [

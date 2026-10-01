@@ -1,0 +1,1696 @@
+<!doctype html>
+<html lang="it">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Dots-style shapes &amp; texture shaders · Bible Strong Avatar Lab</title>
+    <style>
+      * {
+        box-sizing: border-box;
+      }
+      body {
+        margin: 0;
+        min-height: 100vh;
+        background: #0b0e14;
+        color: #eef1f7;
+        font-family:
+          Inter,
+          ui-sans-serif,
+          system-ui,
+          -apple-system,
+          sans-serif;
+      }
+      header {
+        padding: 34px 28px 8px;
+      }
+      h1 {
+        margin: 0;
+        font-size: clamp(20px, 3vw, 30px);
+        letter-spacing: -0.03em;
+      }
+      p.sub {
+        margin: 8px 0 0;
+        color: #8b96ab;
+        font-size: 13px;
+        max-width: 720px;
+        line-height: 1.5;
+      }
+      .grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fill, minmax(230px, 1fr));
+        gap: 18px;
+        padding: 26px 28px 44px;
+      }
+      .card {
+        border: 1px solid #232b3a;
+        border-radius: 22px;
+        overflow: hidden;
+        background: radial-gradient(circle at 50% 30%, #151c29 0, #0d121c 70%);
+      }
+      .slot {
+        aspect-ratio: 1;
+        display: grid;
+        place-items: center;
+      }
+      .slot > * {
+        width: 78%;
+        height: 78%;
+      }
+      .card footer {
+        padding: 10px 14px 12px;
+        border-top: 1px solid #1d2534;
+        color: #aab4c8;
+        font-size: 12px;
+        font-weight: 600;
+        letter-spacing: 0.02em;
+      }
+    </style>
+  </head>
+  <body>
+    <header>
+      <h1>Dots-style shapes &amp; texture shaders</h1>
+      <p class="sub">
+        Nuove forme organiche (blob, nuvola, goccia, fiore) e texture procedurali (feltro, peluche,
+        gloss, neon) renderizzate con lo stesso engine standalone dell'app. Ogni anteprima è viva:
+        micro-saccadi, respiro del corpo e battiti di ciglia.
+      </p>
+    </header>
+    <main class="grid">
+      <section class="card">
+        <div class="slot" id="slot-0"></div>
+        <footer>Sfera · vettoriale puro</footer>
+      </section>
+      <section class="card">
+        <div class="slot" id="slot-1"></div>
+        <footer>Blob · feltro</footer>
+      </section>
+      <section class="card">
+        <div class="slot" id="slot-2"></div>
+        <footer>Nuvoletta · peluche</footer>
+      </section>
+      <section class="card">
+        <div class="slot" id="slot-3"></div>
+        <footer>Goccia · gloss</footer>
+      </section>
+      <section class="card">
+        <div class="slot" id="slot-4"></div>
+        <footer>Fiore · neon</footer>
+      </section>
+      <section class="card">
+        <div class="slot" id="slot-5"></div>
+        <footer>Blob viola · peluche</footer>
+      </section>
+      <section class="card">
+        <div class="slot" id="slot-6"></div>
+        <footer>Fiore lime · feltro</footer>
+      </section>
+      <section class="card">
+        <div class="slot" id="slot-7"></div>
+        <footer>Nuvola blu · neon</footer>
+      </section>
+    </main>
+    <script>
+      var AvatarProceduralEngine = (function (e) {
+        Object.defineProperty(e, Symbol.toStringTag, { value: `Module` })
+        var t = e => e * e * (3 - 2 * e),
+          n = e => {
+            let t = Math.sin(e * 127.1 + 311.7) * 43758.5453
+            return (t - Math.floor(t)) * 2 - 1
+          },
+          r = e => e.headX * 0.71 + e.headY * 1.13 + e.headZ * 1.37,
+          i = 17.29,
+          a = (e, r, i, a) => {
+            let o = e / a,
+              s = Math.floor(o),
+              c = t(o - s),
+              l = n(s * 3 + r + i)
+            return l + (n((s + 1) * 3 + r + i) - l) * c
+          },
+          o = (e, r, i) => {
+            let a = 1100
+            if (e <= 0) return 0
+            let o = Math.floor(e / a),
+              s = (e - o * a) / 140,
+              c = t(Math.min(s, 1)),
+              l = o === 0 ? 0 : n((o - 1) * 2 + r + i)
+            return l + (n(o * 2 + r + i) - l) * c
+          },
+          s = e => e.eyeMotion !== `none` || e.bodyMotion !== `none`,
+          c = (e, t, n = 1) => {
+            let i = r(e)
+            if (e.bodyMotion === `slowDrift`)
+              return { x: a(t, 3, i, 2900) * 1.45 * n, y: a(t, 4, i, 3700) * 1.1 * n }
+            if (e.bodyMotion === `shake`) {
+              let e = t / 1e3
+              return {
+                x: (Math.sin(e * 31) + Math.sin(e * 53) * 0.45) * 1.35 * n,
+                y: (Math.sin(e * 37) + Math.sin(e * 61) * 0.4) * 1.1 * n,
+              }
+            }
+            return { x: 0, y: 0 }
+          },
+          l = (e, t, n = 1) => {
+            if (e.eyeMotion === `microSaccades`)
+              return { x: o(t, 0, i) * 1.5 * n, y: o(t, 1, i) * 0.9 * n }
+            if (e.eyeMotion === `shake`) {
+              let e = t / 1e3
+              return {
+                x: (Math.sin(e * 47) + Math.sin(e * 71) * 0.45) * 1.2 * n,
+                y: (Math.sin(e * 59) + Math.sin(e * 83) * 0.4) * 0.8 * n,
+              }
+            }
+            return { x: 0, y: 0 }
+          },
+          u = (e, t, n = 1) => {
+            let i = { ...e },
+              o = r(e)
+            if (e.bodyMotion === `slowDrift`)
+              ((i.headX += a(t, 0, o, 2600) * 0.8 * n),
+                (i.headY += a(t, 1, o, 3300) * 1.15 * n),
+                (i.headZ += a(t, 2, o, 4100) * 0.45 * n))
+            else if (e.bodyMotion === `shake`) {
+              let e = t / 1e3
+              ;((i.headX += (Math.sin(e * 31) + Math.sin(e * 53) * 0.45) * 1.15 * n),
+                (i.headY += (Math.sin(e * 37) + Math.sin(e * 61) * 0.4) * 1.35 * n),
+                (i.headZ += Math.sin(e * 43) * 0.7 * n))
+            }
+            return i
+          },
+          d = (e, t, n = 1) => {
+            let r = u(e, t, n),
+              i = l(e, t, n)
+            return (
+              (r.positionXLeft += i.x),
+              (r.positionXRight += i.x),
+              (r.positionYLeft += i.y),
+              (r.positionYRight += i.y),
+              r
+            )
+          },
+          f = (e, t) => Math.sign(e) * Math.abs(e) ** t,
+          p = (e, t, n, r, i, a, o) => {
+            let s = f(Math.cos(t), a)
+            return [
+              (n / 2) * s * f(Math.sin(e), o),
+              (r / 2) * f(Math.sin(t), a),
+              (i / 2) * s * f(Math.cos(e), o),
+            ]
+          },
+          m = (e, t, n) => {
+            let r = e.width / 2,
+              i = e.depth / 2,
+              a = Math.min(r, e.height / 2),
+              o = Math.max(0, (e.height - a * 2) / 2),
+              s = o * 2 + Math.PI * a,
+              c = ((n + Math.PI / 2) / Math.PI) * s,
+              l = r,
+              u = 0
+            if (c < (Math.PI * a) / 2) {
+              let e = -Math.PI / 2 + c / a
+              ;((l = r * Math.cos(e)), (u = -o + a * Math.sin(e)))
+            } else if (c <= (Math.PI * a) / 2 + o * 2) u = -o + c - (Math.PI * a) / 2
+            else {
+              let e = (c - (Math.PI * a) / 2 - o * 2) / a
+              ;((l = r * Math.cos(e)), (u = o + a * Math.sin(e)))
+            }
+            let d = r ? i / r : 1
+            return [l * Math.sin(t), u, l * d * Math.cos(t)]
+          },
+          h = e => Math.max(0, Math.min(2, e ?? 0)),
+          g = e => 1 + h(e.roundness) / 2,
+          _ = 0.04,
+          v = e => (e.roundness <= 0 ? 1 / 0 : 2 / (_ + (h(e.roundness) / 2) * 0.96)),
+          y = (e, t, n, r) => {
+            let i = Math.cos(n) * Math.sin(t),
+              a = Math.sin(n),
+              o = Math.cos(n) * Math.cos(t),
+              s = Number.isFinite(r)
+                ? (Math.abs(i) ** r + Math.abs(a) ** r + Math.abs(o) ** r) ** (1 / r) || 1
+                : Math.max(Math.abs(i), Math.abs(a), Math.abs(o)) || 1
+            return [(e.width / 2) * (i / s), (e.height / 2) * (a / s), (e.depth / 2) * (o / s)]
+          },
+          b = (e, t, n) => y(e, t, n, g(e)),
+          x = (e, t, n) => {
+            let r = p(t, n, e.width, e.height, e.depth, 1, 1),
+              i = e.seed ?? 0
+            switch (e.type) {
+              case `blob`: {
+                let a =
+                  1 +
+                  (e.wobble ?? 0.12) *
+                    (Math.sin(t * 3 + i * 1.7) * 0.5 +
+                      Math.sin(n * 2 - i * 2.3) * 0.3 +
+                      Math.sin(t * 5 + n * 3 + i) * 0.2)
+                return [r[0] * a, r[1] * a, r[2] * a]
+              }
+              case `cloud`: {
+                let a = e.wobble ?? 0.18,
+                  o = Math.max(0, Math.cos(n)),
+                  s =
+                    1 +
+                    a *
+                      (Math.cos(3 * t + i) * 0.5 +
+                        Math.cos(5 * t - i * 1.3) * 0.28 +
+                        Math.sin(2 * t + n * 2 + i * 0.7) * 0.22) *
+                      o,
+                  c = r[1] < 0 ? 0.86 : 1
+                return [r[0] * s, r[1] * c, r[2] * s]
+              }
+              case `drop`: {
+                let e = ee((n + Math.PI / 2) / Math.PI)
+                return [r[0] * e, r[1], r[2] * e]
+              }
+              case `flower`: {
+                let i = Math.max(2, Math.round(e.petals ?? 6)),
+                  a = Math.max(0, Math.min(1, e.petalDepth ?? 0.32)),
+                  o = Math.max(0, Math.cos(n)),
+                  s = 1 + a * (Math.cos(i * t) * 0.5 + 0.5) ** 0.8 * o
+                return [r[0] * s, r[1], r[2] * s]
+              }
+              default:
+                return r
+            }
+          },
+          ee = e => 0.42 + 0.58 * Math.sin(Math.min(1, Math.max(0, e) * 1.06) * Math.PI) ** 0.75,
+          te = (e, t) => {
+            let n = Math.max(0, Math.min(1, t))
+            return { radiusScale: ee(n), verticalProgress: (1 - Math.cos(n * Math.PI)) / 2 }
+          },
+          ne = (e, t, n) => y(e, t, n, v(e)),
+          re = 0.24,
+          ie = 0.2,
+          ae = 0.22,
+          oe = e => h(e.morphRoundness) / 2,
+          se = (e, t, n) => {
+            let r = oe(e),
+              i = Math.max(0, Math.min(1, t)),
+              a = Math.sin(i * Math.PI),
+              o = (1 - Math.cos(i * Math.PI)) / 2
+            return {
+              radiusScale: n.radiusScale + (a - n.radiusScale) * r,
+              verticalProgress: n.verticalProgress + (o - n.verticalProgress) * r,
+            }
+          },
+          S = (e, t, n, r, i) => {
+            let a = 1 - i
+            return a ** 3 * e + 3 * a * a * i * t + 3 * a * i * i * n + i ** 3 * r
+          },
+          ce = e => ({
+            tipFraction: (e.tipRoundness ?? 0) * re,
+            baseFraction: (e.baseRoundness ?? 0) * ie,
+          }),
+          C = (e, t) => {
+            let n = Math.max(0, Math.min(1, t)),
+              r = e.roundness * ae
+            if (r <= 0)
+              return { radiusScale: 1, verticalProgress: (Math.sin((n - 0.5) * Math.PI) + 1) / 2 }
+            if (n < r) {
+              let e = -Math.PI / 2 + (n / r) * (Math.PI / 2)
+              return {
+                radiusScale: 1 - r + r * Math.cos(e),
+                verticalProgress: (r + r * Math.sin(e)) / 2,
+              }
+            }
+            if (n > 1 - r) {
+              let e = ((n - (1 - r)) / r) * (Math.PI / 2)
+              return {
+                radiusScale: 1 - r + r * Math.cos(e),
+                verticalProgress: 1 - r / 2 + (r * Math.sin(e)) / 2,
+              }
+            }
+            let i = (n - r) / (1 - r * 2)
+            return { radiusScale: 1, verticalProgress: r / 2 + i * (1 - r) }
+          },
+          le = (e, t) => se(e, t, C(e, t)),
+          w = (e, t, n) => {
+            let r = Math.max(0, Math.min(1, t)),
+              i = 0,
+              a = 1
+            for (let t = 0; t < 14; t += 1) {
+              let t = (i + a) / 2
+              n(e, t).verticalProgress < r ? (i = t) : (a = t)
+            }
+            return n(e, (i + a) / 2).radiusScale
+          },
+          ue = (e, t) => {
+            let n = Math.max(0, Math.min(1, t)),
+              { tipFraction: r, baseFraction: i } = ce(e)
+            if (i > 0 && n < i) {
+              let e = n / i
+              return {
+                radiusScale: S(1 - i, 1, 1 - i / 2, 1 - i, e),
+                verticalProgress: S(0, 0, i / 2, i, e),
+              }
+            }
+            if (r > 0 && n > 1 - r) {
+              let e = (n - (1 - r)) / r
+              return {
+                radiusScale: S(r, r / 2, r / 4, 0, e),
+                verticalProgress: S(1 - r, 1 - r / 2, 1, 1, e),
+              }
+            }
+            return { radiusScale: 1 - n, verticalProgress: n }
+          },
+          de = (e, t) => se(e, t, ue(e, t)),
+          T = e => {
+            let t = e.height * 0.36,
+              n = e.height - t
+            return {
+              coneApexY: -e.height / 2,
+              coneBaseY: -e.height / 2 + t,
+              bodyHeight: n,
+              bodyCenterY: e.height / 2 - n / 2,
+              bodyWidth: e.width * 0.54,
+              bodyDepth: e.depth * 0.62,
+            }
+          },
+          E = (e, t, n) => {
+            let { width: r, height: i, depth: a } = e
+            switch (e.type) {
+              case `sphere`:
+              case `mickey`:
+                return p(t, n, r, i, a, 1, 1)
+              case `cube`:
+                return ne(e, t, n)
+              case `cylinder`: {
+                let o = le(e, (n + Math.PI / 2) / Math.PI)
+                return [
+                  (r / 2) * o.radiusScale * Math.sin(t),
+                  -i / 2 + i * o.verticalProgress,
+                  (a / 2) * o.radiusScale * Math.cos(t),
+                ]
+              }
+              case `cursor`: {
+                let r = T(e),
+                  i = (n + Math.PI / 2) / Math.PI,
+                  a = C({ ...e, width: r.bodyWidth, height: r.bodyHeight, depth: r.bodyDepth }, i)
+                return [
+                  (r.bodyWidth / 2) * a.radiusScale * Math.sin(t),
+                  r.bodyCenterY - r.bodyHeight / 2 + r.bodyHeight * a.verticalProgress,
+                  (r.bodyDepth / 2) * a.radiusScale * Math.cos(t),
+                ]
+              }
+              case `diamond`:
+                return b(e, t, n)
+              case `capsule`:
+                return m(e, t, n)
+              case `blob`:
+              case `cloud`:
+              case `drop`:
+              case `flower`:
+                return x(e, t, n)
+              case `cone`: {
+                let o = de(e, (n + Math.PI / 2) / Math.PI)
+                return [
+                  (r / 2) * o.radiusScale * Math.sin(t),
+                  i / 2 - i * o.verticalProgress,
+                  (a / 2) * o.radiusScale * Math.cos(t),
+                ]
+              }
+            }
+          },
+          fe = (e, t) => [e[0] - t[0], e[1] - t[1], e[2] - t[2]],
+          D = ([e, t, n]) => {
+            let r = Math.hypot(e, t, n) || 1
+            return [e / r, t / r, n / r]
+          },
+          pe = (e, t, n) => {
+            let r = e.type === `cone` ? -1 : 1
+            return D([
+              r * (t[1] * n[2] - t[2] * n[1]),
+              r * (t[2] * n[0] - t[0] * n[2]),
+              r * (t[0] * n[1] - t[1] * n[0]),
+            ])
+          },
+          me = (e, t, n) => {
+            let r = 5e-4
+            if (e.type === `cone` && n >= Math.PI / 2 - r) return [0, -1, 0]
+            let i = E(e, t - r, n),
+              a = E(e, t + r, n),
+              o = E(e, t, Math.max(-Math.PI / 2, n - r)),
+              s = E(e, t, Math.min(Math.PI / 2, n + r))
+            return pe(e, fe(a, i), fe(s, o))
+          },
+          O = (e, t) => Math.sign(e) * Math.abs(e) ** t,
+          he = (e, t, n) => {
+            let r = e.width / 2 || 1,
+              i = e.height / 2 || 1,
+              a = e.depth / 2 || 1
+            return D([O(t[0] / r, n - 1) / r, O(t[1] / i, n - 1) / i, O(t[2] / a, n - 1) / a])
+          },
+          ge = (e, t) => he(e, t, g(e)),
+          _e = (e, t) => {
+            let n = v(e)
+            if (Number.isFinite(n)) return he(e, t, n)
+            let r = [
+                t[0] / (e.width / 2 || 1),
+                t[1] / (e.height / 2 || 1),
+                t[2] / (e.depth / 2 || 1),
+              ],
+              i = r.reduce((e, t, n) => (Math.abs(t) > Math.abs(r[e]) ? n : e), 0)
+            return [
+              i === 0 ? Math.sign(r[0]) : 0,
+              i === 1 ? Math.sign(r[1]) : 0,
+              i === 2 ? Math.sign(r[2]) : 0,
+            ]
+          },
+          ve = (e, t, n, r, i) => {
+            let a = e.width / 2 || 1,
+              o = e.height / 2 || 1,
+              s = e.depth / 2 || 1
+            if (!Number.isFinite(r)) {
+              let r = [Math.max(-a, Math.min(a, t)), Math.max(-o, Math.min(o, n)), s]
+              return { point: r, normal: i(e, r) }
+            }
+            let c = Math.max(-1, Math.min(1, n / o)),
+              l = Math.max(0, 1 - Math.abs(c) ** r) ** (1 / r),
+              u = Math.max(-a * l, Math.min(a * l, t)),
+              d = u / a,
+              f = Math.max(0, 1 - Math.abs(d) ** r - Math.abs(c) ** r) ** (1 / r),
+              p = [u, c * o, s * f]
+            return { point: p, normal: i(e, p) }
+          },
+          k = (e, t, n, r, i, a = 0) => {
+            let o = t - a,
+              s = Math.max(0, 1 - (e / (n || 1)) ** 2 - (o / (r || 1)) ** 2),
+              c = i * Math.sqrt(s)
+            return {
+              point: [e, t, c],
+              normal: D([e / (n * n || 1), o / (r * r || 1), c / (i * i || 1)]),
+            }
+          },
+          A = (e, t, n, r, i) => {
+            let a = e.width / 2 || 1,
+              o = e.depth / 2 || 1,
+              s = Math.max(0, Math.min(1, 0.5 + i * (n / e.height))),
+              c = w(e, s, r),
+              l = a * c,
+              u = o * c,
+              d = Math.max(-l, Math.min(l, t)),
+              f = l > 0 ? Math.max(0, 1 - (d / l) ** 2) : 0,
+              p = u * Math.sqrt(f),
+              m = 1e-4,
+              h = Math.max(0, s - m),
+              g = Math.min(1, s + m),
+              _ = w(e, h, r),
+              v = (w(e, g, r) - _) / (g - h || 1),
+              y = Math.max(Math.sqrt(f), 1e-4),
+              b = (-(o / a) * d) / (l * y || 1),
+              x = (i * o * v) / (e.height * y || 1)
+            return { point: [d, n, p], normal: D([-b, -x, 1]) }
+          },
+          ye = (e, t, n) => {
+            let r = e.width / 2 || 1,
+              i = e.height / 2 || 1,
+              a = e.depth / 2 || 1
+            switch (e.type) {
+              case `sphere`:
+              case `mickey`:
+                return k(t, n, r, i, a)
+              case `cube`:
+                return ve(e, t, n, v(e), _e)
+              case `capsule`: {
+                let e = Math.min(r, i),
+                  o = Math.max(0, i - e)
+                return k(t, n, r, e, a, n < -o ? -o : n > o ? o : n)
+              }
+              case `cylinder`:
+                return A(e, t, n, le, 1)
+              case `cursor`: {
+                let r = T(e),
+                  i = A(
+                    { ...e, width: r.bodyWidth, height: r.bodyHeight, depth: r.bodyDepth },
+                    t,
+                    n - r.bodyCenterY,
+                    C,
+                    1
+                  )
+                return {
+                  point: [i.point[0], i.point[1] + r.bodyCenterY, i.point[2]],
+                  normal: i.normal,
+                }
+              }
+              case `cone`:
+                return A(e, t, n, de, -1)
+              case `diamond`:
+                return ve(e, t, n, g(e), ge)
+              case `drop`:
+                return A(e, t, n, te, 1)
+              case `blob`:
+              case `cloud`:
+              case `flower`:
+                return k(t, n, r, i, a)
+            }
+          },
+          be = (e, t, n) => {
+            let r = E(e, t, n)
+            if (e.type === `sphere` || e.type === `mickey`) {
+              let t = e.width / 2 || 1,
+                n = e.height / 2 || 1,
+                i = e.depth / 2 || 1
+              return { point: r, normal: D([r[0] / (t * t), r[1] / (n * n), r[2] / (i * i)]) }
+            }
+            return e.type === `cylinder` && e.roundness <= 0 && (e.morphRoundness ?? 0) <= 0
+              ? {
+                  point: r,
+                  normal: D([
+                    Math.sin(t) / (e.width / 2 || 1),
+                    0,
+                    Math.cos(t) / (e.depth / 2 || 1),
+                  ]),
+                }
+              : e.type === `diamond`
+                ? { point: r, normal: ge(e, r) }
+                : e.type === `cube`
+                  ? { point: r, normal: _e(e, r) }
+                  : { point: r, normal: me(e, t, n) }
+          },
+          j = 620,
+          M = 14,
+          xe = [
+            `headX`,
+            `headY`,
+            `headZ`,
+            `widthLeft`,
+            `widthRight`,
+            `heightLeft`,
+            `heightRight`,
+            `spacing`,
+            `positionXLeft`,
+            `positionXRight`,
+            `positionYLeft`,
+            `positionYRight`,
+            `leftAngle`,
+            `rightAngle`,
+            `perspective`,
+          ],
+          N = e => (e * Math.PI) / 180,
+          P = ([e, t, n, r]) => {
+            let i = Math.hypot(e, t, n, r) || 1
+            return [e / i, t / i, n / i, r / i]
+          },
+          Se = ([e, t, n, r], [i, a, o, s]) =>
+            P([
+              e * i - t * a - n * o - r * s,
+              e * a + t * i + n * s - r * o,
+              e * o - t * s + n * i + r * a,
+              e * s + t * o - n * a + r * i,
+            ]),
+          F = ([e, t, n], r) => {
+            let i = r / 2,
+              a = Math.sin(i)
+            return P([Math.cos(i), e * a, t * a, n * a])
+          },
+          I = (e, t, n) => {
+            let r = F([1, 0, 0], e),
+              i = F([0, 1, 0], t)
+            return Se(Se(F([0, 0, 1], n), r), i)
+          },
+          L = ([e, t, n, r], [i, a, o]) => {
+            let s = 2 * (n * o - r * a),
+              c = 2 * (r * i - t * o),
+              l = 2 * (t * a - n * i)
+            return [
+              i + e * s + (n * l - r * c),
+              a + e * c + (r * s - t * l),
+              o + e * l + (t * c - n * s),
+            ]
+          },
+          Ce = (e, t) => {
+            let n = e / 2,
+              r = t / 2,
+              i = Math.min(r, n),
+              a = [],
+              o = (e, t) => {
+                let n = Math.max(2, Math.ceil(Math.hypot(t[0] - e[0], t[1] - e[1]) / 1.5))
+                for (let r = 0; r < n; r += 1) {
+                  let i = r / n
+                  a.push([e[0] + (t[0] - e[0]) * i, e[1] + (t[1] - e[1]) * i])
+                }
+              },
+              s = (e, t, n) => {
+                for (let r = 0; r < M; r += 1) {
+                  let o = n + (r / M) * (Math.PI / 2)
+                  a.push([e + Math.cos(o) * i, t + Math.sin(o) * i])
+                }
+              }
+            return (
+              o([-n + i, -r], [n - i, -r]),
+              s(n - i, -r + i, -Math.PI / 2),
+              o([n, -r + i], [n, r - i]),
+              s(n - i, r - i, 0),
+              o([n - i, r], [-n + i, r]),
+              s(-n + i, r - i, Math.PI / 2),
+              o([-n, r - i], [-n, -r + i]),
+              s(-n + i, -r + i, Math.PI),
+              a
+            )
+          },
+          R = (e, t) => {
+            let n = j - e[2] * t,
+              r = Math.abs(n) < 1e-4 ? j / 1e-4 : j / n
+            return [e[0] * r, e[1] * r, e[2]]
+          },
+          z = (e, t = !0) =>
+            e.length
+              ? `M${e[0][0].toFixed(2)} ${e[0][1].toFixed(2)}${e
+                  .slice(1)
+                  .map(e => `L${e[0].toFixed(2)} ${e[1].toFixed(2)}`)
+                  .join(``)}${t ? `Z` : ``}`
+              : ``,
+          we = e => ({ expression: e, orientation: I(N(e.headX), N(e.headY), N(e.headZ)) }),
+          Te = 24,
+          Ee = 25,
+          De = 73,
+          B = 144,
+          V = 33,
+          Oe = 73,
+          H = new Map(),
+          ke = new Map(),
+          Ae = new Map(),
+          je = new Map(),
+          U = e =>
+            JSON.stringify([
+              e.type,
+              e.width,
+              e.height,
+              e.depth,
+              e.roundness,
+              e.morphRoundness,
+              e.tipRoundness,
+              e.baseRoundness,
+              e.seed,
+              e.wobble,
+              e.petals,
+              e.petalDepth,
+            ]),
+          W = (e, t, n) => (e.size >= Te && e.delete(e.keys().next().value), e.set(t, n), n),
+          Me = (e, t, n) => be(e, t, n),
+          Ne = (e, t) => ({
+            point: R(L(e.orientation, t.point), e.expression.perspective),
+            normal: L(e.orientation, t.normal),
+          }),
+          Pe = (e, t) => {
+            let n = e / 120,
+              r = t / 120
+            return [120 * Math.cos(r) * Math.sin(n), 120 * Math.sin(r)]
+          },
+          Fe = (e, t, n, r) => {
+            let [i, a] = Pe(n, r)
+            return Ne(e, ye(t, i, a))
+          },
+          Ie = (e, t, n, r, i = { x: 0, y: 0 }) => {
+            let a = e.expression,
+              o = n < 0 ? `Left` : `Right`,
+              s = a[`width${o}`],
+              c = 5 + (a[`height${o}`] - 5) * r,
+              l = (n * a.spacing) / 2 + a[`positionX${o}`] + i.x,
+              u = a[`positionY${o}`] + i.y,
+              d = N(n < 0 ? a.leftAngle : a.rightAngle)
+            return Ce(s, c).map(([n, r]) => {
+              let i = n * Math.cos(d) - r * Math.sin(d),
+                a = n * Math.sin(d) + r * Math.cos(d)
+              return Fe(e, t, l + i, u + a)
+            })
+          },
+          Le = e => {
+            let t = [],
+              n = []
+            return (
+              e.forEach(({ point: e, normal: r }) => {
+                r[2] > 0 ? n.push(e) : n.length && (t.push(n), (n = []))
+              }),
+              n.length && t.push(n),
+              t
+                .filter(e => e.length > 1)
+                .map(e => z(e, !1))
+                .join(``)
+            )
+          },
+          Re = (e, t) => {
+            let n = U(t),
+              r = je.get(n)
+            if (!r) {
+              let e = [-60, -30, 0, 30, 60].map(e =>
+                  Array.from({ length: 73 }, (n, r) => Me(t, N(-180 + r * 5), N(e)))
+                ),
+                i = Array.from({ length: 12 }, (e, t) => -150 + t * 30).map(e =>
+                  Array.from({ length: 37 }, (n, r) => Me(t, N(e), N(-90 + r * 5)))
+                )
+              r = W(je, n, [...e, ...i])
+            }
+            return r.map(t => Le(t.map(t => Ne(e, t))))
+          },
+          G = e => {
+            let t = [...e].sort((e, t) => e[0] - t[0] || e[1] - t[1]),
+              n = (e, t, n) => (t[0] - e[0]) * (n[1] - e[1]) - (t[1] - e[1]) * (n[0] - e[0]),
+              r = e => {
+                let t = []
+                return (
+                  e.forEach(e => {
+                    for (; t.length >= 2 && n(t.at(-2), t.at(-1), e) <= 0;) t.pop()
+                    t.push(e)
+                  }),
+                  t
+                )
+              }
+            return [...r(t).slice(0, -1), ...r(t.reverse()).slice(0, -1)]
+          },
+          K = e => {
+            if (e.length < 3) return z(e)
+            let t = t => e[(t + e.length) % e.length]
+            return `M${e[0][0].toFixed(2)} ${e[0][1].toFixed(2)}${e
+              .map((e, n) => {
+                let r = t(n - 1),
+                  i = t(n + 1),
+                  a = t(n + 2),
+                  o = [e[0] + (i[0] - r[0]) / 6, e[1] + (i[1] - r[1]) / 6, e[2]],
+                  s = [i[0] - (a[0] - e[0]) / 6, i[1] - (a[1] - e[1]) / 6, i[2]]
+                return `C${o[0].toFixed(2)} ${o[1].toFixed(2)} ${s[0].toFixed(2)} ${s[1].toFixed(2)} ${i[0].toFixed(2)} ${i[1].toFixed(2)}`
+              })
+              .join(``)}Z`
+          },
+          q = (e, t = 7) =>
+            e.flatMap((n, r) => {
+              let i = e[(r + 1) % e.length],
+                a = Math.max(1, Math.ceil(Math.hypot(i[0] - n[0], i[1] - n[1]) / t))
+              return Array.from({ length: a }, (e, t) => {
+                let r = t / a
+                return [
+                  n[0] + (i[0] - n[0]) * r,
+                  n[1] + (i[1] - n[1]) * r,
+                  n[2] + (i[2] - n[2]) * r,
+                ]
+              })
+            }),
+          ze = e =>
+            e.length
+              ? e.length === 1
+                ? `${e[0][0].toFixed(2)} ${e[0][1].toFixed(2)}`
+                : e
+                    .slice(0, -1)
+                    .map((t, n) => {
+                      let r = e[Math.max(0, n - 1)],
+                        i = e[n + 1],
+                        a = e[Math.min(e.length - 1, n + 2)],
+                        o = t[0] + (i[0] - r[0]) / 6,
+                        s = t[1] + (i[1] - r[1]) / 6,
+                        c = i[0] - (a[0] - t[0]) / 6,
+                        l = i[1] - (a[1] - t[1]) / 6
+                      return `C${o.toFixed(2)} ${s.toFixed(2)} ${c.toFixed(2)} ${l.toFixed(2)} ${i[0].toFixed(2)} ${i[1].toFixed(2)}`
+                    })
+                    .join(``)
+              : ``,
+          J = (e, t) => R(L(e.orientation, t), e.expression.perspective),
+          Y = (e, t, n) =>
+            Array.from({ length: 145 }, (r, i) => {
+              let a = (i / B) * Math.PI * 2
+              return [(e / 2) * Math.sin(a), n, (t / 2) * Math.cos(a)]
+            }),
+          X = (e, t) => {
+            let n = U(t),
+              r = H.get(n)
+            return (
+              r ||
+                ((r = Array.from({ length: V }, (e, n) => {
+                  let r = -Math.PI / 2 + (n / 32) * Math.PI
+                  return Array.from({ length: Oe }, (e, n) =>
+                    E(t, -Math.PI + (n / 72) * Math.PI * 2, r)
+                  )
+                }).flat()),
+                W(H, n, r)),
+              K(q(G(r.map(t => J(e, t)))))
+            )
+          },
+          Be = (e, t) => {
+            if (t.roundness > 0 || (t.morphRoundness ?? 0) > 0) return X(e, t)
+            let n = t.height / 2
+            return K(
+              q(G([...Y(t.width, t.depth, -n), ...Y(t.width, t.depth, n)].map(t => J(e, t))))
+            )
+          },
+          Ve = (e, t) => {
+            let n = T(t),
+              r = n.bodyHeight / 2
+            return K(
+              q(
+                G(
+                  [
+                    ...Y(n.bodyWidth, n.bodyDepth, n.bodyCenterY - r),
+                    ...Y(n.bodyWidth, n.bodyDepth, n.bodyCenterY + r),
+                  ].map(t => J(e, t))
+                )
+              )
+            )
+          },
+          He = (e, t) => {
+            let n = T(t),
+              r = J(e, [0, n.coneApexY, 0])
+            return K(q(G([...Y(t.width, t.depth, n.coneBaseY).map(t => J(e, t)), r])))
+          },
+          Ue = (e, t) => {
+            if (
+              (t.morphRoundness ?? 0) > 0 ||
+              (t.tipRoundness ?? 0) > 0 ||
+              (t.baseRoundness ?? 0) > 0
+            )
+              return X(e, t)
+            let n = J(e, [0, -t.height / 2, 0]),
+              r = G([...Y(t.width, t.depth, t.height / 2).map(t => J(e, t)), n]),
+              i = r.findIndex(e => Math.hypot(e[0] - n[0], e[1] - n[1]) < 0.01)
+            if (i < 0) return K(r)
+            let a = [...r.slice(i), ...r.slice(0, i)].slice(1)
+            return a.length < 2
+              ? z(r)
+              : `M${n[0].toFixed(2)} ${n[1].toFixed(2)}L${a[0][0].toFixed(2)} ${a[0][1].toFixed(2)}${ze(a)}L${n[0].toFixed(2)} ${n[1].toFixed(2)}Z`
+          },
+          We = (e, t) => {
+            if (t.roundness > 0) return X(e, t)
+            let n = t.width / 2,
+              r = t.height / 2,
+              i = t.depth / 2
+            return z(
+              G(
+                [-1, 1]
+                  .flatMap(e => [-1, 1].flatMap(t => [-1, 1].map(a => [e * n, t * r, a * i])))
+                  .map(t => J(e, t))
+              )
+            )
+          },
+          Ge = (e, t) => {
+            if (t.roundness > 0) return X(e, t)
+            let n = t.width / 2,
+              r = t.height / 2,
+              i = t.depth / 2
+            return z(
+              G(
+                [
+                  [-n, 0, 0],
+                  [n, 0, 0],
+                  [0, -r, 0],
+                  [0, r, 0],
+                  [0, 0, -i],
+                  [0, 0, i],
+                ].map(t => J(e, t))
+              )
+            )
+          },
+          Ke = (e, t, n, r, i) => {
+            let a = n + i,
+              o = Math.hypot(n - i, r * 2),
+              s = (a + o) / 2,
+              c = (a - o) / 2
+            return s <= 0 || c <= 0
+              ? null
+              : {
+                  centerX: e,
+                  centerY: t,
+                  majorRadius: Math.sqrt(s),
+                  minorRadius: Math.sqrt(c),
+                  rotation: Math.atan2(r * 2, n - i) / 2,
+                }
+          },
+          Z = ({ centerX: e, centerY: t, majorRadius: n, minorRadius: r, rotation: i }) => {
+            let a = (i * 180) / Math.PI,
+              o = Math.cos(i) * n,
+              s = Math.sin(i) * n,
+              c = e + o,
+              l = t + s,
+              u = e - o,
+              d = t - s
+            return `M${c.toFixed(2)} ${l.toFixed(2)}A${n.toFixed(2)} ${r.toFixed(2)} ${a.toFixed(2)} 0 1 ${u.toFixed(2)} ${d.toFixed(2)}A${n.toFixed(2)} ${r.toFixed(2)} ${a.toFixed(2)} 0 1 ${c.toFixed(2)} ${l.toFixed(2)}Z`
+          },
+          Q = (e, t, n = [0, 0, 0]) => {
+            let r = [
+                L(e.orientation, [1, 0, 0]),
+                L(e.orientation, [0, 1, 0]),
+                L(e.orientation, [0, 0, 1]),
+              ],
+              i = L(e.orientation, n)
+            if (Math.abs(e.expression.perspective) < 1e-4) {
+              let e = r.reduce((e, n, r) => e + n[0] * n[0] * t[r] * t[r], 0),
+                n = r.reduce((e, n, r) => e + n[0] * n[1] * t[r] * t[r], 0),
+                a = r.reduce((e, n, r) => e + n[1] * n[1] * t[r] * t[r], 0)
+              return Ke(i[0], i[1], e, n, a)
+            }
+            let a = t.map(e => 1 / (e * e)),
+              o = Array.from({ length: 3 }, (e, t) =>
+                Array.from({ length: 3 }, (e, n) =>
+                  r.reduce((e, r, i) => e + r[t] * a[i] * r[n], 0)
+                )
+              ),
+              s = j / e.expression.perspective,
+              c = [-i[0], -i[1], s - i[2]],
+              l = [
+                o[0][0] * c[0] + o[0][1] * c[1] + o[0][2] * c[2],
+                o[1][0] * c[0] + o[1][1] * c[1] + o[1][2] * c[2],
+                o[2][0] * c[0] + o[2][1] * c[1] + o[2][2] * c[2],
+              ],
+              u = c[0] * l[0] + c[1] * l[1] + c[2] * l[2] - 1,
+              d = [l[0], l[1], -s * l[2]],
+              f = [
+                [o[0][0], o[0][1], -s * o[0][2]],
+                [o[1][0], o[1][1], -s * o[1][2]],
+                [-s * o[2][0], -s * o[2][1], s * s * o[2][2]],
+              ],
+              p = Array.from({ length: 3 }, (e, t) =>
+                Array.from({ length: 3 }, (e, n) => d[t] * d[n] - u * f[t][n])
+              ),
+              m = p[0][0] * p[1][1] - p[0][1] * p[0][1]
+            if (Math.abs(m) < 1e-12) return null
+            let h = -(p[1][1] * p[0][2] - p[0][1] * p[1][2]) / m,
+              g = (p[0][1] * p[0][2] - p[0][0] * p[1][2]) / m,
+              _ = -(p[2][2] + p[0][2] * h + p[1][2] * g)
+            if (Math.abs(_) < 1e-12) return null
+            let v = p[0][0] / _,
+              y = p[0][1] / _,
+              b = p[1][1] / _,
+              x = v * b - y * y
+            return x <= 0 ? null : Ke(h, g, b / x, -y / x, v / x)
+          },
+          qe = (e, t) => {
+            let n = Q(e, [t.width / 2, t.height / 2, t.depth / 2]),
+              r = t.width === t.height && t.height === t.depth
+            if (n && r) {
+              let e = (n.majorRadius + n.minorRadius) / 2
+              return Z({ centerX: 0, centerY: 0, majorRadius: e, minorRadius: e, rotation: 0 })
+            }
+            return n ? Z(n) : null
+          },
+          Je = (e, t) => {
+            if (t.type !== `mickey`) return []
+            let n = Math.min(t.width, t.height) * 0.23,
+              r = Math.min(n, t.depth * 0.29),
+              i = t.width * 0.37,
+              a = -t.height * 0.39,
+              o = -t.depth * 0.12,
+              s = [n, n, r]
+            return [-1, 1]
+              .map(t => Q(e, s, [t * i, a, o]))
+              .filter(e => e !== null)
+              .map(Z)
+          },
+          Ye = (e, t) => (t.type === `mickey` ? Je(e, t) : t.type === `cursor` ? [He(e, t)] : []),
+          $ = e =>
+            Array.from({ length: B }, (t, n) => {
+              let r = (n / B) * Math.PI * 2,
+                i = Math.cos(r) * e.majorRadius,
+                a = Math.sin(r) * e.minorRadius
+              return [
+                e.centerX + i * Math.cos(e.rotation) - a * Math.sin(e.rotation),
+                e.centerY + i * Math.sin(e.rotation) + a * Math.cos(e.rotation),
+                0,
+              ]
+            }),
+          Xe = e => {
+            if (e.length < 3) return z(e)
+            let t = e.map((t, n) => {
+                let r = e[(n + 1) % e.length]
+                return Math.hypot(r[0] - t[0], r[1] - t[1])
+              }),
+              n = [...t].sort((e, t) => e - t),
+              r = n[Math.floor(n.length / 2)] || 1,
+              i = Math.max(8, r * 3.5),
+              a = t.map(e => e > i)
+            return `M${e[0][0].toFixed(2)} ${e[0][1].toFixed(2)}${e
+              .map((t, n) => {
+                let r = (n + 1) % e.length,
+                  i = e[r]
+                if (a[n]) return `L${i[0].toFixed(2)} ${i[1].toFixed(2)}`
+                let o = a[(n - 1 + e.length) % e.length] ? t : e[(n - 1 + e.length) % e.length],
+                  s = a[r] ? i : e[(n + 2) % e.length],
+                  c = t[0] + (i[0] - o[0]) / 6,
+                  l = t[1] + (i[1] - o[1]) / 6,
+                  u = i[0] - (s[0] - t[0]) / 6,
+                  d = i[1] - (s[1] - t[1]) / 6
+                return `C${c.toFixed(2)} ${l.toFixed(2)} ${u.toFixed(2)} ${d.toFixed(2)} ${i[0].toFixed(2)} ${i[1].toFixed(2)}`
+              })
+              .join(``)}Z`
+          },
+          Ze = (e, t) => {
+            let n = t.width / 2,
+              r = Math.min(n, t.height / 2),
+              i = t.depth / 2,
+              a = Math.max(0, (t.height - r * 2) / 2),
+              o = [n, r, i],
+              s = Q(e, o, [0, a, 0]),
+              c = Q(e, o, [0, -a, 0])
+            return !s || !c ? null : Xe(G([...$(s), ...$(c)]))
+          },
+          Qe = 0.2,
+          $e = 8,
+          et = (e, t) => {
+            let n = U(t),
+              r = ke.get(n)
+            r ||
+              ((r = Array.from({ length: V }, (e, n) => {
+                let r = -Math.PI / 2 + (n / 32) * Math.PI
+                return Array.from({ length: Oe }, (e, n) =>
+                  be(t, -Math.PI + (n / 72) * Math.PI * 2, r)
+                )
+              })),
+              W(ke, n, r))
+            let i = r
+              .flat()
+              .filter(t => {
+                let n = L(e.orientation, t.normal)
+                return Math.abs(n[2]) <= Qe
+              })
+              .map(t => R(L(e.orientation, t.point), e.expression.perspective))
+            if (i.length < $e)
+              return K(
+                q(G(r.flat().map(t => R(L(e.orientation, t.point), e.expression.perspective))))
+              )
+            let a = [
+              i.reduce((e, t) => e + t[0], 0) / i.length,
+              i.reduce((e, t) => e + t[1], 0) / i.length,
+              0,
+            ]
+            return K(
+              q(
+                [...i].sort(
+                  (e, t) =>
+                    Math.atan2(e[1] - a[1], e[0] - a[0]) - Math.atan2(t[1] - a[1], t[0] - a[0])
+                )
+              )
+            )
+          },
+          tt = (e, t) => {
+            if (t.type === `sphere` || t.type === `mickey`) {
+              let n = qe(e, t)
+              if (n) return n
+            }
+            if (t.type === `blob` || t.type === `cloud` || t.type === `drop` || t.type === `flower`)
+              return et(e, t)
+            if (t.type === `capsule`) {
+              let n = Ze(e, t)
+              if (n) return n
+            }
+            if (t.type === `cylinder`) return Be(e, t)
+            if (t.type === `cursor`) return Ve(e, t)
+            if (t.type === `cone`) return Ue(e, t)
+            if (t.type === `cube`) return We(e, t)
+            if (t.type === `diamond`) return Ge(e, t)
+            let n = U(t),
+              r = H.get(n)
+            return (
+              r ||
+                ((r = Array.from({ length: Ee }, (e, n) => {
+                  let r = -Math.PI / 2 + (n / 24) * Math.PI
+                  return Array.from({ length: De }, (e, n) =>
+                    E(t, -Math.PI + (n / 72) * Math.PI * 2, r)
+                  )
+                }).flat()),
+                W(H, n, r)),
+              z(G(r.map(t => R(L(e.orientation, t), e.expression.perspective))))
+            )
+          },
+          nt = (e, t) => {
+            let n = U(t.surface),
+              r = Ae.get(n)
+            r ||
+              ((r = Array.from({ length: 17 }, (e, n) => {
+                let r = -Math.PI / 2 + (n / 16) * Math.PI
+                return Array.from({ length: 49 }, (e, n) => {
+                  let i = -Math.PI + (n / 48) * Math.PI * 2
+                  return E(t.surface, i, r)
+                })
+              }).flat()),
+              W(Ae, n, r))
+            let i = I(N(t.rotation[0]), N(t.rotation[1]), N(t.rotation[2])),
+              a = G(
+                r.map(n => {
+                  let r = L(i, n),
+                    a = [r[0] + t.position[0], r[1] + t.position[1], r[2] + t.position[2]]
+                  return R(L(e.orientation, a), e.expression.perspective)
+                })
+              )
+            return (t.surface.type === `cube` || t.surface.type === `diamond`) &&
+              t.surface.roundness <= 0
+              ? z(a)
+              : K(q(a))
+          },
+          rt = 0.1,
+          it = (e, t) => {
+            let n = I(N(t.rotation[0]), N(t.rotation[1]), N(t.rotation[2])),
+              r = [
+                [1, 0, 0],
+                [0, 1, 0],
+                [0, 0, 1],
+              ].map(t => L(e.orientation, L(n, t))[2])
+            return Math.hypot(
+              r[0] * (t.surface.width / 2),
+              r[1] * (t.surface.height / 2),
+              r[2] * (t.surface.depth / 2)
+            )
+          },
+          at = (e, t) => {
+            let n = t
+              .map(t => {
+                let n = L(e.orientation, t.position)[2]
+                return { id: t.id, path: nt(e, t), depth: n, front: n > it(e, t) * rt }
+              })
+              .sort((e, t) => e.depth - t.depth)
+            return {
+              backPaths: n.filter(e => !e.front).map(e => e.path),
+              frontPaths: n.filter(e => e.front).map(e => e.path),
+              backNodeIds: n.filter(e => !e.front).map(e => e.id),
+              frontNodeIds: n.filter(e => e.front).map(e => e.id),
+            }
+          }
+        return (
+          (e.ambientBodyOffset = c),
+          (e.ambientEyeOffset = l),
+          (e.applyAmbientBodyMotion = u),
+          (e.applyAmbientMotion = d),
+          (e.createTextureShader = (e, t, n) => {
+            if (e.type === `none`) return { defs: ``, underEye: ``, top: `` }
+            let r = Math.max(0, Math.min(1, e.intensity ?? (e.type === `neon` ? 0.8 : 0.55))),
+              i = e => `bs-tex-${e}-${n}`,
+              a = e => e.toFixed(3),
+              o = (e, t = ``) =>
+                `<rect x="-150" y="-150" width="300" height="300" fill="${e}" ${t}/>`,
+              s = e => `<g clip-path="url(#${t})" pointer-events="none">${e}</g>`,
+              c = e => `style="mix-blend-mode:${e}"`,
+              l = e =>
+                s(
+                  `<radialGradient id="${i(`dark`)}" cx="50%" cy="42%" r="72%"><stop offset="0.55" stop-color="#000000" stop-opacity="0"/><stop offset="1" stop-color="#000000" stop-opacity="${a(0.2 + 0.26 * r)}"/></radialGradient><radialGradient id="${i(`light`)}" cx="34%" cy="26%" r="62%"><stop offset="0" stop-color="#ffffff" stop-opacity="${a(0.08 + 0.22 * r)}"/><stop offset="1" stop-color="#ffffff" stop-opacity="0"/></radialGradient>` +
+                    e
+                )
+            switch (e.type) {
+              case `felt`:
+                return {
+                  defs:
+                    `<filter id="${i(`grain`)}" x="0%" y="0%" width="100%" height="100%"><feTurbulence type="fractalNoise" baseFrequency="0.82" numOctaves="2" seed="7"/><feColorMatrix type="matrix" values="0 0 0 0 0.55 0 0 0 0 0.55 0 0 0 0 0.58 0 0 0 0.9 0"/></filter>` +
+                    l(``),
+                  underEye:
+                    `<g ${c(`multiply`)}>` +
+                    s(o(`url(#${i(`dark`)})`)) +
+                    `</g><g ${c(`screen`)}>` +
+                    s(o(`url(#${i(`light`)})`)) +
+                    `</g><g ${c(`overlay`)} opacity="${a(0.16 + 0.3 * r)}">` +
+                    s(o(`transparent`, `filter="url(#${i(`grain`)})"`)) +
+                    `</g>`,
+                  top: ``,
+                }
+              case `plush`:
+                return {
+                  defs:
+                    `<filter id="${i(`fur`)}" x="0%" y="0%" width="100%" height="100%"><feTurbulence type="turbulence" baseFrequency="0.06 0.2" numOctaves="3" seed="11"/><feColorMatrix type="matrix" values="0 0 0 0 1 0 0 0 0 1 0 0 0 0 1 0 0 0 1.4 0"/></filter>` +
+                    l(``),
+                  underEye:
+                    `<g ${c(`multiply`)}>` +
+                    s(o(`url(#${i(`dark`)})`)) +
+                    `</g><g ${c(`screen`)}>` +
+                    s(o(`url(#${i(`light`)})`)) +
+                    `</g><g ${c(`soft-light`)} opacity="${a(0.35 + 0.45 * r)}">` +
+                    s(o(`transparent`, `filter="url(#${i(`fur`)})"`)) +
+                    `</g><g ${c(`overlay`)} opacity="${a(0.1 + 0.2 * r)}"><filter id="${i(`fuzz`)}" x="0%" y="0%" width="100%" height="100%"><feTurbulence type="fractalNoise" baseFrequency="0.55" numOctaves="2" seed="4"/><feColorMatrix type="matrix" values="0 0 0 0 0.6 0 0 0 0 0.6 0 0 0 0 0.63 0 0 0 0.9 0"/></filter>` +
+                    s(o(`transparent`, `filter="url(#${i(`fuzz`)})"`)) +
+                    `</g>`,
+                  top: ``,
+                }
+              case `glossy`:
+                return {
+                  defs:
+                    `<radialGradient id="${i(`sheen`)}" cx="50%" cy="50%" r="50%"><stop offset="0" stop-color="#ffffff" stop-opacity="${a(0.55 + 0.35 * r)}"/><stop offset="0.7" stop-color="#ffffff" stop-opacity="${a(0.08 * r)}"/><stop offset="1" stop-color="#ffffff" stop-opacity="0"/></radialGradient><linearGradient id="${i(`floor`)}" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#ffffff" stop-opacity="0"/><stop offset="1" stop-color="#ffffff" stop-opacity="${a(0.1 + 0.14 * r)}"/></linearGradient>` +
+                    l(``),
+                  underEye:
+                    `<g ${c(`multiply`)}>` +
+                    s(o(`url(#${i(`dark`)})`)) +
+                    `</g><g pointer-events="none">` +
+                    s(
+                      `<ellipse cx="-52" cy="-76" rx="48" ry="30" fill="url(#${i(`sheen`)})" transform="rotate(-24 -52 -76)"/>`
+                    ) +
+                    `</g>`,
+                  top:
+                    `<g ${c(`screen`)} pointer-events="none">` +
+                    s(o(`url(#${i(`floor`)})`, `transform="translate(0 26)"`)) +
+                    `</g>`,
+                }
+              case `neon`:
+                return {
+                  defs: `<filter id="${i(`glow`)}" x="-40%" y="-40%" width="180%" height="180%"><feGaussianBlur in="SourceGraphic" stdDeviation="${a(6 + 6 * r)}"/></filter><radialGradient id="${i(`light`)}" cx="42%" cy="36%" r="70%"><stop offset="0" stop-color="#ffffff" stop-opacity="${a(0.16 + 0.2 * r)}"/><stop offset="1" stop-color="#ffffff" stop-opacity="0"/></radialGradient>`,
+                  underEye:
+                    `<g ${c(`screen`)} pointer-events="none">` +
+                    s(o(`url(#${i(`light`)})`)) +
+                    `</g>`,
+                  top: ``,
+                  glowFilterId: i(`glow`),
+                }
+              default:
+                return { defs: ``, underEye: ``, top: `` }
+            }
+          }),
+          (e.expressionFields = xe),
+          (e.hasAmbientMotion = s),
+          (e.poseFromExpression = we),
+          (e.renderAvatar = (e, t, n = 1, r = {}) => {
+            let i = Ie(e, t, -1, n, r.eyeOffset),
+              a = Ie(e, t, 1, n, r.eyeOffset),
+              o = i.map(e => e.point),
+              s = a.map(e => e.point),
+              c = at(e, r.bodyNodes ?? []),
+              l = Ye(e, t)
+            return {
+              backPaths: [...l, ...c.backPaths],
+              frontPaths: c.frontPaths,
+              backNodeIds: [...l.map(() => null), ...c.backNodeIds],
+              frontNodeIds: c.frontNodeIds,
+              headPath: tt(e, t),
+              leftPath: z(o),
+              rightPath: z(s),
+              leftVisible: i.reduce((e, t) => e + t.normal[2], 0) > 0,
+              rightVisible: a.reduce((e, t) => e + t.normal[2], 0) > 0,
+              wirePaths: r.includeWire === !1 ? [] : Re(e, t),
+            }
+          }),
+          e
+        )
+      })({})
+      const RUNTIME_SOURCE =
+        "\nconst SVG_NS = 'http://www.w3.org/2000/svg';\nconst avatarInstanceId = () => typeof globalThis.crypto?.randomUUID === 'function'\n  ? globalThis.crypto.randomUUID()\n  : Date.now().toString(36) + '-' + Math.random().toString(36).slice(2);\nconst clamp01 = value => Math.max(0, Math.min(1, value));\nconst easeProgress = (progress, transition) => transition === 'smooth'\n  ? progress * progress * (3 - 2 * progress)\n  : transition === 'snappy'\n    ? 1 - (1 - progress) ** 3\n    : 1 - Math.exp(-6 * progress) * Math.cos(8 * progress);\nconst nearestAngle = (target, current) => {\n  let resolved = target;\n  while (resolved - current > 180) resolved -= 360;\n  while (resolved - current < -180) resolved += 360;\n  return resolved;\n};\nconst resolvedTargetExpression = (target, current) => ({\n  ...target,\n  headX: nearestAngle(target.headX, current.headX),\n  headY: nearestAngle(target.headY, current.headY),\n  headZ: nearestAngle(target.headZ, current.headZ),\n  leftAngle: nearestAngle(target.leftAngle, current.leftAngle),\n  rightAngle: nearestAngle(target.rightAngle, current.rightAngle),\n});\nconst colorChannels = color => {\n  const value = color.replace('#', '');\n  const hex = value.length === 3 ? value.split('').map(channel => channel + channel).join('') : value;\n  const numeric = Number.parseInt(hex, 16);\n  return [(numeric >> 16) & 255, (numeric >> 8) & 255, numeric & 255];\n};\nconst interpolateColor = (from, to, progress) => {\n  const left = colorChannels(from);\n  const right = colorChannels(to);\n  const value = left.map((channel, index) => Math.round(channel + (right[index] - channel) * progress));\n  return '#' + value.map(channel => channel.toString(16).padStart(2, '0')).join('');\n};\nconst resolveColors = expression => ({\n  body: expression.bodyColor || DATA.avatar.colors.body,\n  eyes: expression.eyeColor || DATA.avatar.colors.eyes,\n});\nconst svgElement = name => document.createElementNS(SVG_NS, name);\nconst canvasPath = (context, value, color, opacity = 1) => {\n  if (!value || opacity <= 0) return;\n  context.globalAlpha = opacity;\n  context.fillStyle = color;\n  context.fill(new Path2D(value));\n};\nconst paintPixelGeometry = (context, geometry, offset, colors, resolution) => {\n  const scale = resolution / 300;\n  context.clearRect(0, 0, resolution, resolution);\n  context.imageSmoothingEnabled = false;\n  context.save();\n  context.setTransform(scale, 0, 0, scale, resolution / 2, resolution / 2);\n  context.translate(offset.x, offset.y);\n  geometry.backPaths.forEach(value => canvasPath(context, value, colors.body));\n  canvasPath(context, geometry.headPath, colors.body);\n  context.save();\n  context.clip(new Path2D(geometry.headPath));\n  canvasPath(context, geometry.leftPath, colors.eyes, geometry.leftVisible ? 1 : 0);\n  canvasPath(context, geometry.rightPath, colors.eyes, geometry.rightVisible ? 1 : 0);\n  context.restore();\n  geometry.frontPaths.forEach(value => canvasPath(context, value, colors.body));\n  context.restore();\n  const image = context.getImageData(0, 0, resolution, resolution);\n  const body = colorChannels(colors.body);\n  const eyes = colorChannels(colors.eyes);\n  for (let index = 0; index < image.data.length; index += 4) {\n    if (image.data[index + 3] < 128) {\n      image.data[index] = 0;\n      image.data[index + 1] = 0;\n      image.data[index + 2] = 0;\n      image.data[index + 3] = 0;\n      continue;\n    }\n    const bodyDistance = (image.data[index] - body[0]) ** 2 +\n      (image.data[index + 1] - body[1]) ** 2 + (image.data[index + 2] - body[2]) ** 2;\n    const eyeDistance = (image.data[index] - eyes[0]) ** 2 +\n      (image.data[index + 1] - eyes[1]) ** 2 + (image.data[index + 2] - eyes[2]) ** 2;\n    const color = bodyDistance <= eyeDistance ? body : eyes;\n    image.data[index] = color[0];\n    image.data[index + 1] = color[1];\n    image.data[index + 2] = color[2];\n    image.data[index + 3] = 255;\n  }\n  context.putImageData(image, 0, 0);\n};\n\nfunction mountAvatar(target, options = {}) {\n  const host = typeof target === 'string' ? document.querySelector(target) : target;\n  if (!host) throw new Error('Avatar target was not found.');\n  const animationNames = Object.keys(DATA.animations);\n  if (!animationNames.length) throw new Error('The avatar export contains no animations.');\n  const instanceId = avatarInstanceId();\n  const clipId = 'avatar-procedural-clip-' + instanceId;\n  const svg = svgElement('svg');\n  svg.setAttribute('viewBox', '-150 -150 300 300');\n  svg.setAttribute('role', 'img');\n  svg.setAttribute('aria-label', DATA.avatar.name);\n  svg.style.width = typeof options.size === 'number' ? options.size + 'px' : options.size || '100%';\n  svg.style.height = typeof options.size === 'number' ? options.size + 'px' : options.size || '100%';\n  svg.style.display = 'block';\n  svg.style.overflow = 'visible';\n  const pixelStyle = DATA.avatar.renderStyle?.type === 'pixel' ? DATA.avatar.renderStyle : null;\n  const canvas = document.createElement('canvas');\n  const pixelResolution = pixelStyle ? Math.max(8, Math.min(192, Math.round(pixelStyle.resolution))) : 64;\n  canvas.width = pixelResolution;\n  canvas.height = pixelResolution;\n  canvas.setAttribute('role', 'img');\n  canvas.setAttribute('aria-label', DATA.avatar.name);\n  canvas.style.width = typeof options.size === 'number' ? options.size + 'px' : options.size || '100%';\n  canvas.style.height = typeof options.size === 'number' ? options.size + 'px' : options.size || '100%';\n  canvas.style.display = 'block';\n  canvas.style.imageRendering = 'pixelated';\n  const pixelContext = canvas.getContext('2d', { willReadFrequently: true });\n  const defs = svgElement('defs');\n  const clipPath = svgElement('clipPath');\n  const clipHead = svgElement('path');\n  clipPath.id = clipId;\n  clipPath.append(clipHead);\n  defs.append(clipPath);\n  svg.append(defs);\n  const motionLayer = svgElement('g');\n  const backLayer = svgElement('g');\n  const head = svgElement('path');\n  const eyesLayer = svgElement('g');\n  const leftEye = svgElement('path');\n  const rightEye = svgElement('path');\n  const frontLayer = svgElement('g');\n  eyesLayer.setAttribute('clip-path', 'url(#' + clipId + ')');\n  eyesLayer.append(leftEye, rightEye);\n  motionLayer.append(backLayer, head, eyesLayer, frontLayer);\n  svg.append(motionLayer);\n  const textureConfig = DATA.avatar.texture && DATA.avatar.texture.type !== 'none' && !pixelStyle\n    ? DATA.avatar.texture\n    : null;\n  const textureShader = textureConfig\n    ? AvatarProceduralEngine.createTextureShader(textureConfig, clipId + '-body', instanceId)\n    : null;\n  let bodyClipPath = null;\n  let glowPath = null;\n  if (textureShader) {\n    defs.insertAdjacentHTML('beforeend', textureShader.defs);\n    bodyClipPath = svgElement('clipPath');\n    bodyClipPath.id = clipId + '-body';\n    const bodyClipShapes = svgElement('path');\n    bodyClipPath.append(bodyClipShapes);\n    defs.append(bodyClipPath);\n    motionLayer.setAttribute('style', 'isolation:isolate');\n    if (textureShader.glowFilterId) {\n      glowPath = svgElement('path');\n      glowPath.setAttribute('filter', 'url(#' + textureShader.glowFilterId + ')');\n      glowPath.setAttribute('pointer-events', 'none');\n      motionLayer.insertBefore(glowPath, backLayer);\n    }\n    if (textureShader.underEye) {\n      const underEyeLayer = svgElement('g');\n      underEyeLayer.setAttribute('pointer-events', 'none');\n      underEyeLayer.innerHTML = textureShader.underEye;\n      motionLayer.insertBefore(underEyeLayer, eyesLayer);\n    }\n    if (textureShader.top) {\n      const topLayer = svgElement('g');\n      topLayer.setAttribute('pointer-events', 'none');\n      topLayer.innerHTML = textureShader.top;\n      motionLayer.append(topLayer);\n    }\n  }\n  const renderElement = pixelStyle ? canvas : svg;\n  host.replaceChildren(renderElement);\n\n  const ensurePaths = (group, paths, fill) => {\n    while (group.children.length < paths.length) group.append(svgElement('path'));\n    while (group.children.length > paths.length) group.lastElementChild.remove();\n    paths.forEach((path, index) => {\n      group.children[index].setAttribute('d', path);\n      group.children[index].setAttribute('fill', fill);\n    });\n  };\n  let currentAnimation = options.animation && DATA.animations[options.animation] ? options.animation : animationNames[0];\n  const initialStep = DATA.animations[currentAnimation].steps[0];\n  const initialExpression = DATA.expressions[initialStep.expressionId];\n  let currentPose = AvatarProceduralEngine.poseFromExpression(initialExpression);\n  let currentColors = resolveColors(initialExpression);\n  let blinkAmount = 1;\n  let transitionState = null;\n  let blinkState = null;\n  let frameRequest = null;\n  let stepTimer = null;\n  let blinkTimer = null;\n  let blinkDueAt = null;\n  let stepIndex = 0;\n  let direction = 1;\n  let playing = false;\n  let paused = false;\n  let pausedRemainingMs = 0;\n  let pausedTransition = null;\n  let pausedBlink = null;\n  let pausedBlinkDelay = 0;\n  let stepDueAt = null;\n  let eyeAmbientStartedAt = performance.now();\n  let bodyAmbientStartedAt = performance.now();\n  let eyeAmbientSignature = initialExpression.eyeMotion;\n  let bodyAmbientSignature = initialExpression.bodyMotion;\n  let ambientStrength = 1;\n  let lastAmbientFrame = 0;\n\n  const applyMotion = expression => {\n    const now = performance.now();\n    if (expression.eyeMotion !== eyeAmbientSignature) {\n      eyeAmbientSignature = expression.eyeMotion;\n      eyeAmbientStartedAt = now;\n    }\n    if (expression.bodyMotion !== bodyAmbientSignature) {\n      bodyAmbientSignature = expression.bodyMotion;\n      bodyAmbientStartedAt = now;\n    }\n  };\n  const render = (time = performance.now()) => {\n    const eyeElapsed = time - eyeAmbientStartedAt;\n    const bodyElapsed = time - bodyAmbientStartedAt;\n    const expression = currentPose.expression.bodyMotion !== 'none'\n      ? AvatarProceduralEngine.applyAmbientBodyMotion(currentPose.expression, bodyElapsed, ambientStrength)\n      : currentPose.expression;\n    const eyeOffset = AvatarProceduralEngine.ambientEyeOffset(currentPose.expression, eyeElapsed, ambientStrength);\n    const renderedPose = AvatarProceduralEngine.poseFromExpression(expression);\n    const geometry = AvatarProceduralEngine.renderAvatar(renderedPose, DATA.avatar.surface, blinkAmount, {\n      includeWire: false,\n      bodyNodes: DATA.avatar.bodyNodes,\n      eyeOffset,\n    });\n    const offset = AvatarProceduralEngine.ambientBodyOffset(currentPose.expression, bodyElapsed, ambientStrength);\n    if (pixelStyle && pixelContext) {\n      paintPixelGeometry(pixelContext, geometry, offset, currentColors, pixelResolution);\n      return;\n    }\n    motionLayer.setAttribute('transform', 'translate(' + offset.x + ' ' + offset.y + ')');\n    ensurePaths(backLayer, geometry.backPaths, currentColors.body);\n    ensurePaths(frontLayer, geometry.frontPaths, currentColors.body);\n    head.setAttribute('d', geometry.headPath);\n    head.setAttribute('fill', currentColors.body);\n    clipHead.setAttribute('d', geometry.headPath);\n    if (textureShader) {\n      bodyClipPath.firstElementChild.setAttribute('d',\n        geometry.headPath + geometry.backPaths.join('') + geometry.frontPaths.join(''));\n      if (glowPath) {\n        glowPath.setAttribute('d', geometry.headPath);\n        glowPath.setAttribute('fill', currentColors.body);\n      }\n    }\n    leftEye.setAttribute('d', geometry.leftPath);\n    rightEye.setAttribute('d', geometry.rightPath);\n    leftEye.setAttribute('fill', currentColors.eyes);\n    rightEye.setAttribute('fill', currentColors.eyes);\n    leftEye.style.display = geometry.leftVisible ? '' : 'none';\n    rightEye.style.display = geometry.rightVisible ? '' : 'none';\n  };\n  const tick = time => {\n    frameRequest = null;\n    if (transitionState) {\n      const linear = clamp01((time - transitionState.startedAt) / transitionState.durationMs);\n      const eased = easeProgress(linear, transitionState.transition);\n      ambientStrength = clamp01(eased);\n      const expression = { ...transitionState.fromPose.expression };\n      AvatarProceduralEngine.expressionFields.forEach(field => {\n        expression[field] = transitionState.fromPose.expression[field] +\n          (transitionState.toPose.expression[field] - transitionState.fromPose.expression[field]) * eased;\n      });\n      expression.eyeMotion = transitionState.toPose.expression.eyeMotion;\n      expression.bodyMotion = transitionState.toPose.expression.bodyMotion;\n      currentPose = AvatarProceduralEngine.poseFromExpression(expression);\n      currentColors = {\n        body: interpolateColor(transitionState.fromColors.body, transitionState.toColors.body, clamp01(eased)),\n        eyes: interpolateColor(transitionState.fromColors.eyes, transitionState.toColors.eyes, clamp01(eased)),\n      };\n      if (linear >= 1) {\n        currentPose = transitionState.toPose;\n        currentColors = transitionState.toColors;\n        transitionState = null;\n        ambientStrength = 1;\n      }\n    }\n    if (blinkState) {\n      const progress = clamp01((time - blinkState.startedAt) / blinkState.durationMs);\n      if (progress <= 0.42) {\n        const closeProgress = progress / 0.42;\n        blinkAmount = 1 - closeProgress * closeProgress;\n      } else {\n        const openProgress = (progress - 0.42) / 0.58;\n        blinkAmount = 1 - (1 - openProgress) ** 2;\n      }\n      if (progress >= 1) {\n        blinkAmount = 1;\n        blinkState = null;\n      }\n    }\n    const ambientActive = AvatarProceduralEngine.hasAmbientMotion(currentPose.expression);\n    if (transitionState || blinkState || !ambientActive || time - lastAmbientFrame >= 1000 / 30) {\n      render(time);\n      if (ambientActive) lastAmbientFrame = time;\n    }\n    if (transitionState || blinkState || ambientActive) frameRequest = requestAnimationFrame(tick);\n  };\n  const requestTick = () => {\n    if (frameRequest === null) frameRequest = requestAnimationFrame(tick);\n  };\n  const animateTo = (expressionId, durationMs, transition) => {\n    const target = DATA.expressions[expressionId];\n    if (!target) return;\n    applyMotion(target);\n    const resolved = resolvedTargetExpression(target, currentPose.expression);\n    const targetPose = AvatarProceduralEngine.poseFromExpression(resolved);\n    const targetColors = resolveColors(target);\n    if (durationMs <= 0) {\n      ambientStrength = 1;\n      transitionState = null;\n      currentPose = targetPose;\n      currentColors = targetColors;\n      render();\n      if (AvatarProceduralEngine.hasAmbientMotion(currentPose.expression)) requestTick();\n      return;\n    }\n    transitionState = {\n      fromPose: currentPose,\n      toPose: targetPose,\n      fromColors: currentColors,\n      toColors: targetColors,\n      startedAt: performance.now(),\n      durationMs,\n      transition,\n      expressionId,\n    };\n    ambientStrength = 0;\n    requestTick();\n  };\n  const clearSchedule = () => {\n    if (stepTimer !== null) clearTimeout(stepTimer);\n    if (blinkTimer !== null) clearTimeout(blinkTimer);\n    stepTimer = null;\n    blinkTimer = null;\n    blinkDueAt = null;\n    stepDueAt = null;\n  };\n  const scheduleBlink = (animation, delay) => {\n    if (!animation.blink.enabled) return;\n    blinkDueAt = performance.now() + delay;\n    blinkTimer = setTimeout(() => {\n      blinkDueAt = null;\n      blinkState = { startedAt: performance.now(), durationMs: animation.blink.durationMs };\n      requestTick();\n      const range = animation.blink.maxIntervalMs - animation.blink.minIntervalMs;\n      scheduleBlink(animation, animation.blink.durationMs + animation.blink.minIntervalMs + Math.random() * range);\n    }, delay);\n  };\n  const advance = animation => {\n    const last = animation.steps.length - 1;\n    const playbackMode = options.loop === true ? 'loop' : options.loop === false ? 'once' : animation.playbackMode;\n    if (playbackMode === 'once' && stepIndex >= last) {\n      playing = false;\n      options.onAnimationEnd?.(currentAnimation);\n      return;\n    }\n    if (playbackMode === 'pingPong' && last > 0) {\n      if (stepIndex >= last) direction = -1;\n      else if (stepIndex <= 0) direction = 1;\n      stepIndex += direction;\n    } else stepIndex = (stepIndex + 1) % (last + 1);\n    runStep(animation);\n  };\n  const runStep = animation => {\n    if (!playing || !animation.steps.length) return;\n    const step = animation.steps[stepIndex];\n    animateTo(step.expressionId, step.transitionMs, step.transition);\n    const duration = step.transitionMs + step.holdMs;\n    stepDueAt = performance.now() + duration;\n    stepTimer = setTimeout(() => advance(animation), duration);\n  };\n  const api = {\n    element: renderElement,\n    get animation() { return currentAnimation; },\n    get playing() { return playing; },\n    play(animationName) {\n      animationName = animationName || currentAnimation;\n      if (!DATA.animations[animationName]) throw new Error('Unknown animation: ' + animationName);\n      clearSchedule();\n      if (animationName === currentAnimation && paused) {\n        paused = false;\n        playing = true;\n        if (pausedTransition) animateTo(pausedTransition.expressionId, pausedTransition.durationMs, pausedTransition.transition);\n        if (pausedBlink) {\n          blinkState = {\n            startedAt: performance.now() - pausedBlink.progress * pausedBlink.durationMs,\n            durationMs: pausedBlink.durationMs,\n          };\n          requestTick();\n        }\n        stepDueAt = performance.now() + pausedRemainingMs;\n        stepTimer = setTimeout(() => advance(DATA.animations[currentAnimation]), pausedRemainingMs);\n        scheduleBlink(\n          DATA.animations[currentAnimation],\n          pausedBlinkDelay || DATA.animations[currentAnimation].blink.minIntervalMs\n        );\n        pausedTransition = null;\n        pausedBlink = null;\n        pausedBlinkDelay = 0;\n        return api;\n      }\n      currentAnimation = animationName;\n      stepIndex = 0;\n      direction = 1;\n      paused = false;\n      playing = true;\n      runStep(DATA.animations[currentAnimation]);\n      scheduleBlink(DATA.animations[currentAnimation], DATA.animations[currentAnimation].blink.initialDelayMs);\n      return api;\n    },\n    pause() {\n      const now = performance.now();\n      if (playing && stepDueAt !== null) pausedRemainingMs = Math.max(stepDueAt - now, 0);\n      pausedBlinkDelay = blinkDueAt === null ? 0 : Math.max(blinkDueAt - now, 0);\n      if (transitionState) {\n        const elapsed = now - transitionState.startedAt;\n        pausedTransition = {\n          expressionId: transitionState.expressionId,\n          durationMs: Math.max(transitionState.durationMs - elapsed, 0),\n          transition: transitionState.transition,\n        };\n      }\n      if (blinkState) {\n        pausedBlink = {\n          progress: clamp01((now - blinkState.startedAt) / blinkState.durationMs),\n          durationMs: blinkState.durationMs,\n        };\n      }\n      clearSchedule();\n      transitionState = null;\n      blinkState = null;\n      paused = true;\n      playing = false;\n      render();\n      return api;\n    },\n    stop() {\n      clearSchedule();\n      transitionState = null;\n      blinkState = null;\n      blinkAmount = 1;\n      pausedBlink = null;\n      pausedBlinkDelay = 0;\n      paused = false;\n      playing = false;\n      stepIndex = 0;\n      direction = 1;\n      const first = DATA.animations[currentAnimation].steps[0];\n      if (first) animateTo(first.expressionId, 0, first.transition);\n      return api;\n    },\n    destroy() {\n      clearSchedule();\n      if (frameRequest !== null) cancelAnimationFrame(frameRequest);\n      renderElement.remove();\n    },\n  };\n  applyMotion(initialExpression);\n  render();\n  if (AvatarProceduralEngine.hasAmbientMotion(initialExpression)) requestTick();\n  if (options.autoplay !== false) api.play(currentAnimation);\n  return api;\n}\n"
+      const CONFIGS = [
+        {
+          avatar: {
+            name: 'Sfera · vettoriale puro',
+            surface: { type: 'sphere', width: 240, height: 240, depth: 240, roundness: 1 },
+            bodyNodes: [],
+            colors: { body: '#5b7fe5', eyes: '#111316' },
+            renderStyle: { type: 'vector' },
+          },
+          expressions: {
+            neutral: {
+              headX: 0,
+              headY: 0,
+              headZ: 0,
+              widthLeft: 28,
+              widthRight: 28,
+              heightLeft: 38,
+              heightRight: 38,
+              spacing: 54,
+              positionXLeft: 0,
+              positionXRight: 0,
+              positionYLeft: 0,
+              positionYRight: 0,
+              leftAngle: 0,
+              rightAngle: 0,
+              perspective: 1,
+              eyeMotion: 'microSaccades',
+              bodyMotion: 'slowDrift',
+            },
+          },
+          animations: {
+            idle: {
+              playbackMode: 'loop',
+              steps: [
+                { expressionId: 'neutral', holdMs: 5200, transitionMs: 600, transition: 'smooth' },
+              ],
+              blink: {
+                enabled: true,
+                initialDelayMs: 1400,
+                minIntervalMs: 2600,
+                maxIntervalMs: 4600,
+                durationMs: 240,
+              },
+            },
+          },
+        },
+        {
+          avatar: {
+            name: 'Blob · feltro',
+            surface: {
+              type: 'blob',
+              width: 250,
+              height: 235,
+              depth: 235,
+              roundness: 1,
+              seed: 7,
+              wobble: 0.14,
+            },
+            bodyNodes: [],
+            colors: { body: '#4f8fe8', eyes: '#111316' },
+            texture: { type: 'felt', intensity: 0.6 },
+            renderStyle: { type: 'vector' },
+          },
+          expressions: {
+            neutral: {
+              headX: 0,
+              headY: 0,
+              headZ: 0,
+              widthLeft: 28,
+              widthRight: 28,
+              heightLeft: 38,
+              heightRight: 38,
+              spacing: 54,
+              positionXLeft: 0,
+              positionXRight: 0,
+              positionYLeft: 0,
+              positionYRight: 0,
+              leftAngle: 0,
+              rightAngle: 0,
+              perspective: 1,
+              eyeMotion: 'microSaccades',
+              bodyMotion: 'slowDrift',
+            },
+          },
+          animations: {
+            idle: {
+              playbackMode: 'loop',
+              steps: [
+                { expressionId: 'neutral', holdMs: 5200, transitionMs: 600, transition: 'smooth' },
+              ],
+              blink: {
+                enabled: true,
+                initialDelayMs: 1400,
+                minIntervalMs: 2600,
+                maxIntervalMs: 4600,
+                durationMs: 240,
+              },
+            },
+          },
+        },
+        {
+          avatar: {
+            name: 'Nuvoletta · peluche',
+            surface: {
+              type: 'cloud',
+              width: 260,
+              height: 205,
+              depth: 215,
+              roundness: 1,
+              seed: 3,
+              wobble: 0.2,
+            },
+            bodyNodes: [],
+            colors: { body: '#63c7b2', eyes: '#111316' },
+            texture: { type: 'plush', intensity: 0.65 },
+            renderStyle: { type: 'vector' },
+          },
+          expressions: {
+            neutral: {
+              headX: 0,
+              headY: 0,
+              headZ: 0,
+              widthLeft: 28,
+              widthRight: 28,
+              heightLeft: 38,
+              heightRight: 38,
+              spacing: 54,
+              positionXLeft: 0,
+              positionXRight: 0,
+              positionYLeft: 0,
+              positionYRight: 0,
+              leftAngle: 0,
+              rightAngle: 0,
+              perspective: 1,
+              eyeMotion: 'microSaccades',
+              bodyMotion: 'slowDrift',
+            },
+          },
+          animations: {
+            idle: {
+              playbackMode: 'loop',
+              steps: [
+                { expressionId: 'neutral', holdMs: 5200, transitionMs: 600, transition: 'smooth' },
+              ],
+              blink: {
+                enabled: true,
+                initialDelayMs: 1400,
+                minIntervalMs: 2600,
+                maxIntervalMs: 4600,
+                durationMs: 240,
+              },
+            },
+          },
+        },
+        {
+          avatar: {
+            name: 'Goccia · gloss',
+            surface: { type: 'drop', width: 230, height: 270, depth: 230, roundness: 1 },
+            bodyNodes: [],
+            colors: { body: '#f2a53c', eyes: '#111316' },
+            texture: { type: 'glossy', intensity: 0.7 },
+            renderStyle: { type: 'vector' },
+          },
+          expressions: {
+            neutral: {
+              headX: 0,
+              headY: 0,
+              headZ: 0,
+              widthLeft: 28,
+              widthRight: 28,
+              heightLeft: 38,
+              heightRight: 38,
+              spacing: 54,
+              positionXLeft: 0,
+              positionXRight: 0,
+              positionYLeft: 0,
+              positionYRight: 0,
+              leftAngle: 0,
+              rightAngle: 0,
+              perspective: 1,
+              eyeMotion: 'microSaccades',
+              bodyMotion: 'slowDrift',
+            },
+          },
+          animations: {
+            idle: {
+              playbackMode: 'loop',
+              steps: [
+                { expressionId: 'neutral', holdMs: 5200, transitionMs: 600, transition: 'smooth' },
+              ],
+              blink: {
+                enabled: true,
+                initialDelayMs: 1400,
+                minIntervalMs: 2600,
+                maxIntervalMs: 4600,
+                durationMs: 240,
+              },
+            },
+          },
+        },
+        {
+          avatar: {
+            name: 'Fiore · neon',
+            surface: {
+              type: 'flower',
+              width: 255,
+              height: 250,
+              depth: 205,
+              roundness: 1,
+              petals: 6,
+              petalDepth: 0.32,
+            },
+            bodyNodes: [],
+            colors: { body: '#ef5fa7', eyes: '#111316' },
+            texture: { type: 'neon', intensity: 0.8 },
+            renderStyle: { type: 'vector' },
+          },
+          expressions: {
+            neutral: {
+              headX: 0,
+              headY: 0,
+              headZ: 0,
+              widthLeft: 28,
+              widthRight: 28,
+              heightLeft: 38,
+              heightRight: 38,
+              spacing: 54,
+              positionXLeft: 0,
+              positionXRight: 0,
+              positionYLeft: 0,
+              positionYRight: 0,
+              leftAngle: 0,
+              rightAngle: 0,
+              perspective: 1,
+              eyeMotion: 'microSaccades',
+              bodyMotion: 'slowDrift',
+            },
+          },
+          animations: {
+            idle: {
+              playbackMode: 'loop',
+              steps: [
+                { expressionId: 'neutral', holdMs: 5200, transitionMs: 600, transition: 'smooth' },
+              ],
+              blink: {
+                enabled: true,
+                initialDelayMs: 1400,
+                minIntervalMs: 2600,
+                maxIntervalMs: 4600,
+                durationMs: 240,
+              },
+            },
+          },
+        },
+        {
+          avatar: {
+            name: 'Blob viola · peluche',
+            surface: {
+              type: 'blob',
+              width: 250,
+              height: 235,
+              depth: 235,
+              roundness: 1,
+              seed: 19,
+              wobble: 0.18,
+            },
+            bodyNodes: [],
+            colors: { body: '#9d7bea', eyes: '#111316' },
+            texture: { type: 'plush', intensity: 0.5 },
+            renderStyle: { type: 'vector' },
+          },
+          expressions: {
+            neutral: {
+              headX: 0,
+              headY: 0,
+              headZ: 0,
+              widthLeft: 28,
+              widthRight: 28,
+              heightLeft: 38,
+              heightRight: 38,
+              spacing: 54,
+              positionXLeft: 0,
+              positionXRight: 0,
+              positionYLeft: 0,
+              positionYRight: 0,
+              leftAngle: 0,
+              rightAngle: 0,
+              perspective: 1,
+              eyeMotion: 'microSaccades',
+              bodyMotion: 'slowDrift',
+            },
+          },
+          animations: {
+            idle: {
+              playbackMode: 'loop',
+              steps: [
+                { expressionId: 'neutral', holdMs: 5200, transitionMs: 600, transition: 'smooth' },
+              ],
+              blink: {
+                enabled: true,
+                initialDelayMs: 1400,
+                minIntervalMs: 2600,
+                maxIntervalMs: 4600,
+                durationMs: 240,
+              },
+            },
+          },
+        },
+        {
+          avatar: {
+            name: 'Fiore lime · feltro',
+            surface: {
+              type: 'flower',
+              width: 255,
+              height: 250,
+              depth: 205,
+              roundness: 1,
+              petals: 8,
+              petalDepth: 0.26,
+            },
+            bodyNodes: [],
+            colors: { body: '#a5d63f', eyes: '#111316' },
+            texture: { type: 'felt', intensity: 0.5 },
+            renderStyle: { type: 'vector' },
+          },
+          expressions: {
+            neutral: {
+              headX: 0,
+              headY: 0,
+              headZ: 0,
+              widthLeft: 28,
+              widthRight: 28,
+              heightLeft: 38,
+              heightRight: 38,
+              spacing: 54,
+              positionXLeft: 0,
+              positionXRight: 0,
+              positionYLeft: 0,
+              positionYRight: 0,
+              leftAngle: 0,
+              rightAngle: 0,
+              perspective: 1,
+              eyeMotion: 'microSaccades',
+              bodyMotion: 'slowDrift',
+            },
+          },
+          animations: {
+            idle: {
+              playbackMode: 'loop',
+              steps: [
+                { expressionId: 'neutral', holdMs: 5200, transitionMs: 600, transition: 'smooth' },
+              ],
+              blink: {
+                enabled: true,
+                initialDelayMs: 1400,
+                minIntervalMs: 2600,
+                maxIntervalMs: 4600,
+                durationMs: 240,
+              },
+            },
+          },
+        },
+        {
+          avatar: {
+            name: 'Nuvola blu · neon',
+            surface: {
+              type: 'cloud',
+              width: 260,
+              height: 205,
+              depth: 215,
+              roundness: 1,
+              seed: 11,
+              wobble: 0.2,
+            },
+            bodyNodes: [],
+            colors: { body: '#3fd0ff', eyes: '#111316' },
+            texture: { type: 'neon', intensity: 0.7 },
+            renderStyle: { type: 'vector' },
+          },
+          expressions: {
+            neutral: {
+              headX: 0,
+              headY: 0,
+              headZ: 0,
+              widthLeft: 28,
+              widthRight: 28,
+              heightLeft: 38,
+              heightRight: 38,
+              spacing: 54,
+              positionXLeft: 0,
+              positionXRight: 0,
+              positionYLeft: 0,
+              positionYRight: 0,
+              leftAngle: 0,
+              rightAngle: 0,
+              perspective: 1,
+              eyeMotion: 'microSaccades',
+              bodyMotion: 'slowDrift',
+            },
+          },
+          animations: {
+            idle: {
+              playbackMode: 'loop',
+              steps: [
+                { expressionId: 'neutral', holdMs: 5200, transitionMs: 600, transition: 'smooth' },
+              ],
+              blink: {
+                enabled: true,
+                initialDelayMs: 1400,
+                minIntervalMs: 2600,
+                maxIntervalMs: 4600,
+                durationMs: 240,
+              },
+            },
+          },
+        },
+      ]
+      const mountWith = data => new Function('DATA', RUNTIME_SOURCE + '\nreturn mountAvatar;')(data)
+      CONFIGS.forEach((data, index) => {
+        mountWith(data)('#slot-' + index, { size: '100%', animation: 'idle' })
+      })
+    </script>
+  </body>
+</html>

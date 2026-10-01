@@ -1,6 +1,7 @@
 import { parseAvatarBody, type AvatarBody } from './body'
 import { defaultExpression, initialExpressions } from './presets'
 import { surfacePresets } from './surfaces'
+import { parseTextureConfig, type AvatarTextureConfig } from './texture'
 import type { Expression } from './geometry'
 import { isBodyMotion, isEyeMotion } from './ambientMotion'
 import {
@@ -19,6 +20,7 @@ export type StudioAvatar = {
   name: string
   body: AvatarBody
   colors: AvatarColors
+  texture: AvatarTextureConfig
   eyes: AvatarEyeDefaults
   renderStyle: AvatarRenderStyle
   behavior?: AvatarBehaviorLibrary
@@ -250,6 +252,7 @@ export const createAvatar = (name: string): StudioAvatar => ({
   name: name.trim() || 'Nouvel avatar',
   body: { primary: { ...surfacePresets.sphere }, nodes: [] },
   colors: { ...defaultAvatarColors },
+  texture: { type: 'none' },
   eyes: { ...defaultAvatarEyes },
   renderStyle: { ...defaultAvatarRenderStyle },
 })
@@ -278,6 +281,7 @@ export const parseAvatarLibrary = (
           name: avatar.name,
           body: parseAvatarBody(avatar.body, surfacePresets.sphere),
           colors: parseColors(avatar.colors),
+          texture: parseTextureConfig(avatar.texture),
           eyes: parseAvatarEyeDefaults(avatar.eyes),
           renderStyle: parseAvatarRenderStyle(avatar.renderStyle),
           ...(behavior ? { behavior } : {}),

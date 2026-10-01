@@ -239,6 +239,7 @@ export const studioAvatarFromDefinition = (value: unknown): ImportedAvatarDefini
       })),
     },
     colors: definition.colors,
+    texture: definition.colors.texture ?? { type: 'none' },
     eyes: {
       widthLeft: neutral.eyes.left.width,
       widthRight: neutral.eyes.right.width,

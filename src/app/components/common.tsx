@@ -10,6 +10,8 @@ import { useStudioLanguage } from '@/i18n'
 
 import { type PlaybackStatus } from '@/app/studio-utils'
 import type { AvatarRenderStyle } from '@/features/avatar/avatars'
+import { type AvatarTextureConfig } from '@/features/avatar/texture'
+import { createTextureShader } from '@/features/avatar/texture'
 import { type SnapshotBackground } from '@/features/export/snapshotExporter'
 import {
   normalizeSnapshotComposition,
@@ -48,6 +50,7 @@ export function SnapshotPreview({
   background,
   colorFrom,
   colorTo,
+  texture,
   renderStyle,
   composition,
   onCompositionChange,
@@ -57,6 +60,7 @@ export function SnapshotPreview({
   background: SnapshotBackground
   colorFrom: string
   colorTo: string
+  texture: AvatarTextureConfig
   renderStyle: AvatarRenderStyle
   composition: SnapshotComposition
   onCompositionChange: (composition: SnapshotComposition) => void
@@ -64,9 +68,12 @@ export function SnapshotPreview({
   const { t } = useStudioLanguage()
   const id = useId().replace(/:/g, '')
   const clipId = `${id}-clip`
+  const bodyClipId = `${id}-body-clip`
   const frameClipId = `${id}-frame-clip`
   const linearId = `${id}-linear`
   const radialId = `${id}-radial`
+  const textureShader = createTextureShader(texture, bodyClipId, id)
+  const textureEnabled = texture.type !== 'none'
   const positionX = useMotionValue(composition.x)
   const positionY = useMotionValue(composition.y)
   const scale = useMotionValue(composition.scale)
@@ -251,6 +258,17 @@ export function SnapshotPreview({
             <clipPath id={clipId}>
               <motion.path d={scene.headPath} />
             </clipPath>
+            {textureEnabled && (
+              <clipPath id={bodyClipId}>
+                <motion.path d={scene.headPath} />
+                {scene.backPaths.map((pathValue, index) => (
+                  <motion.path d={pathValue} key={`clip-back-${index}`} />
+                ))}
+                {scene.frontPaths.map((pathValue, index) => (
+                  <motion.path d={pathValue} key={`clip-front-${index}`} />
+                ))}
+              </clipPath>
+            )}
             <linearGradient id={linearId} x1="0" y1="0" x2="1" y2="1">
               <stop offset="0" stopColor={colorFrom} />
               <stop offset="1" stopColor={colorTo} />
@@ -264,23 +282,52 @@ export function SnapshotPreview({
             {background !== 'transparent' && (
               <rect x="-150" y="-150" width="300" height="300" fill={backgroundFill} />
             )}
+            {textureEnabled && (
+              <g aria-hidden="true" dangerouslySetInnerHTML={{ __html: textureShader.defs }} />
+            )}
             <g ref={compositionGroupRef}>
               <motion.g style={{ x: scene.offsetX, y: scene.offsetY }}>
-                {scene.backPaths.map((pathValue, index) => (
-                  <motion.path d={pathValue} fill={colors.body} key={`back-${index}`} />
-                ))}
-                <motion.path d={scene.headPath} fill={colors.body} />
-                <g clipPath={`url(#${clipId})`}>
-                  <motion.path d={scene.leftPath} fill={colors.eyes} opacity={scene.leftOpacity} />
-                  <motion.path
-                    d={scene.rightPath}
-                    fill={colors.eyes}
-                    opacity={scene.rightOpacity}
-                  />
+                <g style={{ isolation: 'isolate' }}>
+                  {textureShader.glowFilterId && (
+                    <motion.path
+                      d={scene.headPath}
+                      fill={colors.body}
+                      filter={`url(#${textureShader.glowFilterId})`}
+                      pointerEvents="none"
+                    />
+                  )}
+                  {scene.backPaths.map((pathValue, index) => (
+                    <motion.path d={pathValue} fill={colors.body} key={`back-${index}`} />
+                  ))}
+                  <motion.path d={scene.headPath} fill={colors.body} />
+                  {textureShader.underEye && (
+                    <g
+                      pointerEvents="none"
+                      dangerouslySetInnerHTML={{ __html: textureShader.underEye }}
+                    />
+                  )}
+                  <g clipPath={`url(#${clipId})`}>
+                    <motion.path
+                      d={scene.leftPath}
+                      fill={colors.eyes}
+                      opacity={scene.leftOpacity}
+                    />
+                    <motion.path
+                      d={scene.rightPath}
+                      fill={colors.eyes}
+                      opacity={scene.rightOpacity}
+                    />
+                  </g>
+                  {scene.frontPaths.map((pathValue, index) => (
+                    <motion.path d={pathValue} fill={colors.body} key={`front-${index}`} />
+                  ))}
+                  {textureShader.top && (
+                    <g
+                      pointerEvents="none"
+                      dangerouslySetInnerHTML={{ __html: textureShader.top }}
+                    />
+                  )}
                 </g>
-                {scene.frontPaths.map((pathValue, index) => (
-                  <motion.path d={pathValue} fill={colors.body} key={`front-${index}`} />
-                ))}
               </motion.g>
             </g>
           </g>

@@ -99,7 +99,7 @@ describe('@bible-strong/avatar-react', () => {
     const view = render(<Avatar definition={definition} ariaLabel="Layered avatar" />)
     const svg = view.getByRole('img', { name: 'Layered avatar' }).querySelector('svg')
 
-    expect(svg?.querySelectorAll(':scope > path')).toHaveLength(37)
+    expect(svg?.querySelectorAll(':scope > g > path')).toHaveLength(37)
   })
 
   it('exposes semantic imperative controls without Studio identifiers', () => {
@@ -164,7 +164,7 @@ describe('@bible-strong/avatar-react', () => {
     const clock = vi.spyOn(performance, 'now').mockReturnValue(1_000)
     const controller = createRef<AvatarController>()
     const view = render(<Avatar definition={definition} ref={controller} />)
-    const eye = view.container.querySelector<SVGPathElement>('.bs-avatar__svg g path')
+    const eye = view.container.querySelector<SVGPathElement>('.bs-avatar__svg > g > g > path')
     const neutralPath = eye?.getAttribute('d')
 
     act(() => controller.current?.setExpression('smile'))

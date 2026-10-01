@@ -1,4 +1,5 @@
 import type { AvatarColors } from '../avatar/avatars'
+import { createTextureShader, type AvatarTextureConfig } from '../avatar/texture'
 import type { RenderedScene } from '../rendering/renderedScene'
 import {
   defaultSnapshotComposition,
@@ -14,6 +15,7 @@ export type SnapshotOptions = {
   colorFrom: string
   colorTo: string
   size: number
+  texture?: AvatarTextureConfig
   composition?: SnapshotComposition
 }
 
@@ -28,8 +30,10 @@ const escapeXml = (value: string) =>
     return entities[character]
   })
 
-const path = (value: string, fill: string, opacity = 1) =>
-  value ? `<path d="${escapeXml(value)}" fill="${fill}" opacity="${opacity}"/>` : ''
+const path = (value: string, fill: string, opacity = 1, extra = '') =>
+  value
+    ? `<path d="${escapeXml(value)}" fill="${fill}" opacity="${opacity}"${extra ? ` ${extra}` : ''}/>`
+    : ''
 
 const backgroundMarkup = (options: SnapshotOptions) => {
   if (options.background === 'transparent') return ''
@@ -72,19 +76,44 @@ export const serializeAvatarSnapshot = (
   })
   const offsetX = scene.offsetX.get()
   const offsetY = scene.offsetY.get()
+  const texture = options.texture ?? { type: 'none' as const }
+  const textureEnabled = texture.type !== 'none'
+  const textureShader = textureEnabled
+    ? createTextureShader(texture, 'snapshot-body-clip', 'snapshot')
+    : null
   const body = [
+    ...(textureShader?.glowFilterId
+      ? [
+          path(
+            headPath,
+            colors.body,
+            1,
+            `filter="url(#${textureShader.glowFilterId})" pointer-events="none"`
+          ),
+        ]
+      : []),
     ...backPaths.map(value => path(value, colors.body)),
     path(headPath, colors.body),
+    ...(textureShader?.underEye ? [textureShader.underEye] : []),
     `<g clip-path="url(#snapshot-head-clip)">${path(scene.leftPath.get(), colors.eyes, scene.leftOpacity.get())}${path(scene.rightPath.get(), colors.eyes, scene.rightOpacity.get())}</g>`,
     ...frontPaths.map(value => path(value, colors.body)),
+    ...(textureShader?.top ? [textureShader.top] : []),
   ].join('')
+  const bodyClipMarkup = textureEnabled
+    ? `<clipPath id="snapshot-body-clip"><path d="${escapeXml(headPath)}"/>${backPaths
+        .map(value => `<path d="${escapeXml(value)}"/>`)
+        .join('')}${frontPaths.map(value => `<path d="${escapeXml(value)}"/>`).join('')}</clipPath>`
+    : ''
+  const isolatedBody = textureEnabled
+    ? `<g style="mix-blend-mode:normal;isolation:isolate">${body}</g>`
+    : body
 
   return `<?xml version="1.0" encoding="UTF-8"?>
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="-150 -150 300 300" width="${options.size}" height="${options.size}" role="img" aria-label="${escapeXml(name)}">
-  <defs>${gradientMarkup(options)}<clipPath id="snapshot-frame-clip"><rect x="-150" y="-150" width="300" height="300" rx="${snapshotCornerRadius(composition.cornerRadius)}"/></clipPath><clipPath id="snapshot-head-clip"><path d="${escapeXml(headPath)}"/></clipPath></defs>
+  <defs>${gradientMarkup(options)}<clipPath id="snapshot-frame-clip"><rect x="-150" y="-150" width="300" height="300" rx="${snapshotCornerRadius(composition.cornerRadius)}"/></clipPath><clipPath id="snapshot-head-clip"><path d="${escapeXml(headPath)}"/></clipPath>${bodyClipMarkup}${textureShader ? textureShader.defs : ''}</defs>
   <g clip-path="url(#snapshot-frame-clip)">
     ${backgroundMarkup(options)}
-    <g transform="translate(${composition.x} ${composition.y}) scale(${composition.scale})"><g transform="translate(${offsetX} ${offsetY})">${body}</g></g>
+    <g transform="translate(${composition.x} ${composition.y}) scale(${composition.scale})"><g transform="translate(${offsetX} ${offsetY})">${isolatedBody}</g></g>
   </g>
 </svg>`
 }

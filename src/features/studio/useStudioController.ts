@@ -67,6 +67,12 @@ import {
   type StudioAvatar,
 } from '@/features/avatar/avatars'
 import {
+  createTextureShader,
+  defaultTexture,
+  type AvatarTextureConfig,
+  type TextureShader,
+} from '@/features/avatar/texture'
+import {
   isAvatarDefinitionSource,
   studioAvatarFromDefinitionSource,
 } from '@/features/avatar/importAvatarDefinition'
@@ -124,6 +130,8 @@ import {
   paintRenderedScene,
 } from '@/features/rendering/renderedScene'
 import { paintPixelAvatar } from '@/features/rendering/pixelRenderer'
+import { defaultDotSurfaceParams } from '@/features/avatar/surfaces'
+import { renderDotSnapshotPng } from '@/features/rendering/dotSnapshot'
 import {
   createStudioDocumentStore,
   loadStudioDocument,
@@ -792,6 +800,10 @@ export function useStudioController() {
     const colors = { ...avatar.colors, ...changes }
     updateActiveAvatar(current => ({ ...current, colors }))
     setDisplayColors(resolveColors(expression, colors))
+  }
+
+  const updateAvatarTexture = (texture: AvatarTextureConfig) => {
+    updateActiveAvatar(current => ({ ...current, texture }))
   }
 
   const updateAvatarEyes = (changes: Partial<AvatarEyeDefaults>) => {
@@ -1689,6 +1701,7 @@ export function useStudioController() {
         colorFrom: snapshotColorFrom,
         colorTo: snapshotColorTo,
         size: Number(snapshotSize),
+        texture: activeAvatar.texture,
         composition: snapshotComposition,
       }
     )
@@ -1810,6 +1823,33 @@ export function useStudioController() {
   const takePicture = () => {
     setPhotoFlash(current => current + 1)
     requestAnimationFrame(() => {
+      // The dot surface lives in WebGL, so snapshots rasterize the 3D scene
+      // offscreen instead of serializing the SVG paths.
+      if (surfaceRef.current.type === 'dot') {
+        const size = Number(snapshotSize)
+        const png = renderDotSnapshotPng(surfaceRef.current.dot ?? defaultDotSurfaceParams, size)
+        if (snapshotFormat === 'png') {
+          const image = new Image()
+          image.onload = () => {
+            const canvas = document.createElement('canvas')
+            canvas.width = size
+            canvas.height = size
+            canvas.getContext('2d')?.drawImage(image, 0, 0)
+            canvas.toBlob(blob => {
+              if (blob) downloadBlob(blob, snapshotFileName(activeAvatar.name, 'png'))
+            }, 'image/png')
+          }
+          image.src = png
+        } else {
+          downloadBlob(
+            new Blob([serializePixelSnapshot(activeAvatar.name, png, size)], {
+              type: 'image/svg+xml;charset=utf-8',
+            }),
+            snapshotFileName(activeAvatar.name)
+          )
+        }
+        return
+      }
       if (snapshotFormat === 'png') downloadSnapshotPng()
       else downloadSnapshotSvg()
     })
@@ -2102,6 +2142,7 @@ export function useStudioController() {
     toggleExportAnimation,
     toggleStatePlayback,
     transitionToExpression,
+    updateAvatarTexture,
     updateAvatarColors,
     updateAvatarEyeDimension,
     updateAvatarEyePosition,

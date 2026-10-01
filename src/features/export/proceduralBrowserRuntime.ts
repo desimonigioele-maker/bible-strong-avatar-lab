@@ -102,6 +102,12 @@ function mountAvatar(target, options = {}) {
   svg.style.display = 'block';
   svg.style.overflow = 'visible';
   const pixelStyle = DATA.avatar.renderStyle?.type === 'pixel' ? DATA.avatar.renderStyle : null;
+  const dotParams = DATA.avatar.surface?.type === 'dot'
+    ? (DATA.avatar.surface.dot || {
+        color: '#ff2fb4', wobble: 0.055, sssColor: '#ff77cf',
+        sssStrength: 0.95, eyeOffsetX: 0, eyeOffsetY: 0, seed: 1, softness: 'plush',
+      })
+    : null;
   const canvas = document.createElement('canvas');
   const pixelResolution = pixelStyle ? Math.max(8, Math.min(192, Math.round(pixelStyle.resolution))) : 64;
   canvas.width = pixelResolution;
@@ -131,8 +137,77 @@ function mountAvatar(target, options = {}) {
   eyesLayer.append(leftEye, rightEye);
   motionLayer.append(backLayer, head, eyesLayer, frontLayer);
   svg.append(motionLayer);
+  const textureConfig = DATA.avatar.texture && DATA.avatar.texture.type !== 'none' && !pixelStyle
+    ? DATA.avatar.texture
+    : null;
+  const textureShader = textureConfig
+    ? AvatarProceduralEngine.createTextureShader(textureConfig, clipId + '-body', instanceId)
+    : null;
+  let bodyClipPath = null;
+  let glowPath = null;
+  if (textureShader) {
+    defs.insertAdjacentHTML('beforeend', textureShader.defs);
+    bodyClipPath = svgElement('clipPath');
+    bodyClipPath.id = clipId + '-body';
+    const bodyClipShapes = svgElement('path');
+    bodyClipPath.append(bodyClipShapes);
+    defs.append(bodyClipPath);
+    motionLayer.setAttribute('style', 'isolation:isolate');
+    if (textureShader.glowFilterId) {
+      glowPath = svgElement('path');
+      glowPath.setAttribute('filter', 'url(#' + textureShader.glowFilterId + ')');
+      glowPath.setAttribute('pointer-events', 'none');
+      motionLayer.insertBefore(glowPath, backLayer);
+    }
+    if (textureShader.underEye) {
+      const underEyeLayer = svgElement('g');
+      underEyeLayer.setAttribute('pointer-events', 'none');
+      underEyeLayer.innerHTML = textureShader.underEye;
+      motionLayer.insertBefore(underEyeLayer, eyesLayer);
+    }
+    if (textureShader.top) {
+      const topLayer = svgElement('g');
+      topLayer.setAttribute('pointer-events', 'none');
+      topLayer.innerHTML = textureShader.top;
+      motionLayer.append(topLayer);
+    }
+  }
   const renderElement = pixelStyle ? canvas : svg;
   host.replaceChildren(renderElement);
+  let dotScene = null;
+  let dotRenderer = null;
+  let dotRaf = null;
+  if (dotParams && AvatarProceduralEngine.buildDotScene) {
+    const THREE = AvatarProceduralEngine.THREE;
+    dotScene = AvatarProceduralEngine.buildDotScene(dotParams, 128);
+    dotRenderer = new THREE.WebGLRenderer({
+      antialias: true,
+      alpha: true,
+      preserveDrawingBuffer: true,
+    });
+    dotRenderer.setSize(
+      typeof options.size === 'number' ? options.size : renderElement.clientWidth || 480,
+      typeof options.size === 'number' ? options.size : renderElement.clientHeight || 480,
+      false
+    );
+    dotRenderer.toneMapping = THREE.ACESFilmicToneMapping;
+    dotRenderer.toneMappingExposure = 1.05;
+    dotRenderer.outputColorSpace = THREE.SRGBColorSpace;
+    dotRenderer.shadowMap.enabled = true;
+    dotRenderer.shadowMap.type = THREE.PCFSoftShadowMap;
+    dotRenderer.domElement.style.width = '100%';
+    dotRenderer.domElement.style.height = '100%';
+    dotRenderer.domElement.style.display = 'block';
+    host.replaceChildren(dotRenderer.domElement);
+    const dotResize = () => {
+      const width = host.clientWidth || 480;
+      const height = host.clientHeight || 480;
+      dotRenderer.setSize(width, height, false);
+      dotScene.resize(width, height);
+    };
+    window.addEventListener('resize', dotResize);
+    requestAnimationFrame(dotResize);
+  }
 
   const ensurePaths = (group, paths, fill) => {
     while (group.children.length < paths.length) group.append(svgElement('path'));
@@ -182,6 +257,14 @@ function mountAvatar(target, options = {}) {
     }
   };
   const render = (time = performance.now()) => {
+    if (dotScene && dotRenderer) {
+      const delta = Math.min((time - (render._last || time)) / 1000, 0.1);
+      render._last = time;
+      dotScene.update(time / 1000, delta);
+      dotScene.render(dotRenderer);
+      if (dotRaf === null && playing) dotRaf = requestAnimationFrame(render);
+      return;
+    }
     const eyeElapsed = time - eyeAmbientStartedAt;
     const bodyElapsed = time - bodyAmbientStartedAt;
     const expression = currentPose.expression.bodyMotion !== 'none'
@@ -205,6 +288,14 @@ function mountAvatar(target, options = {}) {
     head.setAttribute('d', geometry.headPath);
     head.setAttribute('fill', currentColors.body);
     clipHead.setAttribute('d', geometry.headPath);
+    if (textureShader) {
+      bodyClipPath.firstElementChild.setAttribute('d',
+        geometry.headPath + geometry.backPaths.join('') + geometry.frontPaths.join(''));
+      if (glowPath) {
+        glowPath.setAttribute('d', geometry.headPath);
+        glowPath.setAttribute('fill', currentColors.body);
+      }
+    }
     leftEye.setAttribute('d', geometry.leftPath);
     rightEye.setAttribute('d', geometry.rightPath);
     leftEye.setAttribute('fill', currentColors.eyes);
@@ -394,6 +485,7 @@ function mountAvatar(target, options = {}) {
       blinkState = null;
       paused = true;
       playing = false;
+      if (dotRaf !== null) { cancelAnimationFrame(dotRaf); dotRaf = null; }
       render();
       return api;
     },
@@ -415,11 +507,25 @@ function mountAvatar(target, options = {}) {
     destroy() {
       clearSchedule();
       if (frameRequest !== null) cancelAnimationFrame(frameRequest);
+      if (dotRaf !== null) cancelAnimationFrame(dotRaf);
+      if (dotRenderer) dotRenderer.dispose();
+      if (dotScene) dotScene.dispose();
       renderElement.remove();
     },
   };
   applyMotion(initialExpression);
   render();
+  if (dotScene && dotRenderer) {
+    const dotLoop = time => {
+      dotRaf = null;
+      if (playing || !paused) {
+        render(time);
+        dotRaf = requestAnimationFrame(dotLoop);
+      }
+    };
+    playing = true;
+    dotRaf = requestAnimationFrame(dotLoop);
+  }
   if (AvatarProceduralEngine.hasAmbientMotion(initialExpression)) requestTick();
   if (options.autoplay !== false) api.play(currentAnimation);
   return api;

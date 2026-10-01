@@ -458,6 +458,30 @@ input {
   cursor: grabbing;
 }
 
+.dot-webgl-canvas {
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  pointer-events: none;
+}
+
+.dot-webgl-canvas canvas {
+  display: block;
+  width: 100% !important;
+  height: 100% !important;
+}
+
+/* The WebGL layer paints the dot body; SVG paths stay for hit-testing only. */
+.avatar.is-dot-3d .avatar-head,
+.avatar.is-dot-3d .avatar-eye {
+  fill: transparent;
+  stroke: transparent;
+}
+
+.avatar.is-dot-3d .wire {
+  display: none;
+}
+
 .export-avatar-summary {
   display: flex;
   align-items: center;

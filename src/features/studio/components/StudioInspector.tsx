@@ -74,6 +74,7 @@ import {
   ExpressionWorkspace,
 } from '@/features/avatar/components/ExpressionWorkspace'
 import { defaultExpression } from '@/features/avatar/presets'
+import { avatarTextureTypes, textureLabels } from '@/features/avatar/texture'
 import { randomSnapshotPalette } from '@/features/export/snapshotPalette'
 import { type SnapshotBackground } from '@/features/export/snapshotExporter'
 import { AvatarPage } from '@/features/studio/components/AvatarDrawer'
@@ -550,6 +551,7 @@ export function StudioInspector({ controller }: { controller: StudioController }
     updateAvatarEyePosition,
     updateAvatarEyeSize,
     updateAvatarEyes,
+    updateAvatarTexture,
     updateDimension,
     updateHighlight,
     updateImmediate,
@@ -842,6 +844,51 @@ export function StudioInspector({ controller }: { controller: StudioController }
                         <div className="render-style-status">
                           <Badge variant="secondary">{t('Vectoriel')}</Badge>
                         </div>
+                      </InspectorCard>
+                      <InspectorCard className="texture-panel">
+                        <PanelTitle
+                          level={3}
+                          title="Texture"
+                          subtitle="Matière du corps rendue par calques SVG au-dessus de la couleur."
+                        />
+                        <Select
+                          value={activeAvatar.texture.type}
+                          items={avatarTextureTypes.map(type => ({
+                            value: type,
+                            label: t(textureLabels[type]),
+                          }))}
+                          onValueChange={next => {
+                            if (!next) return
+                            updateAvatarTexture(
+                              next === 'none'
+                                ? { type: 'none' }
+                                : { type: next, intensity: activeAvatar.texture.intensity }
+                            )
+                          }}
+                        >
+                          <SelectTrigger aria-label={t('Texture du corps')}>
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {avatarTextureTypes.map(type => (
+                              <SelectItem key={type} value={type}>
+                                {t(textureLabels[type])}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                        {activeAvatar.texture.type !== 'none' && (
+                          <NumericField
+                            label="Intensité"
+                            value={activeAvatar.texture.intensity ?? 0.55}
+                            min={0}
+                            max={1}
+                            step={0.01}
+                            onChange={intensity =>
+                              updateAvatarTexture({ ...activeAvatar.texture, intensity })
+                            }
+                          />
+                        )}
                       </InspectorCard>
                     </ControlSection>
                     <ControlSection
@@ -1568,7 +1615,7 @@ export function StudioInspector({ controller }: { controller: StudioController }
                     </div>
                     <Select
                       value={snapshotSize}
-                      items={['512', '1024', '2048'].map(value => ({
+                      items={['512', '1024', '2048', '4096'].map(value => ({
                         value,
                         label: `${value} px`,
                       }))}
@@ -1581,6 +1628,7 @@ export function StudioInspector({ controller }: { controller: StudioController }
                         <SelectItem value="512">512 px</SelectItem>
                         <SelectItem value="1024">1024 px</SelectItem>
                         <SelectItem value="2048">2048 px</SelectItem>
+                        <SelectItem value="4096">4096 px</SelectItem>
                       </SelectContent>
                     </Select>
                   </Field>

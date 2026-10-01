@@ -506,6 +506,7 @@ const PRIMITIVE_RING_SAMPLES = 144
 const ROUNDED_PRIMITIVE_LATITUDE_SAMPLES = 33
 const ROUNDED_PRIMITIVE_LONGITUDE_SAMPLES = 73
 const headSamplesCache = new Map<string, Point3[]>()
+const organicSamplesCache = new Map<string, LocalSurfacePoint[][]>()
 const accessorySamplesCache = new Map<string, Point3[]>()
 const wireSamplesCache = new Map<string, LocalSurfacePoint[][]>()
 
@@ -519,6 +520,11 @@ const surfaceCacheKey = (surface: SurfaceConfig) =>
     surface.morphRoundness,
     surface.tipRoundness,
     surface.baseRoundness,
+    surface.seed,
+    surface.wobble,
+    surface.petals,
+    surface.petalDepth,
+    surface.dot,
   ])
 
 const cacheSurfaceValue = <Value>(cache: Map<string, Value>, key: string, value: Value) => {
@@ -1117,8 +1123,88 @@ const projectedCapsulePath = (pose: AvatarPose, surface: SurfaceConfig) => {
   return smoothHullPath(convexHull([...ellipsePoints(top), ...ellipsePoints(bottom)]))
 }
 
+/**
+ * Organic silhouettes (blob, cloud, drop, flower) are extracted from the
+ * limb band: the samples whose rotated normal is perpendicular to the view
+ * direction. That is the true apparent outline, so concavities such as flower
+ * petals and cloud lumps survive, unlike a convex hull of the point cloud.
+ */
+const ORGANIC_LIMB_BAND = 0.2
+const ORGANIC_OUTLINE_MIN_POINTS = 8
+
+const projectedOrganicPath = (pose: AvatarPose, surface: SurfaceConfig) => {
+  const key = surfaceCacheKey(surface)
+  let rings = organicSamplesCache.get(key)
+  if (!rings) {
+    rings = Array.from({ length: ROUNDED_PRIMITIVE_LATITUDE_SAMPLES }, (_, latitudeIndex) => {
+      const latitude =
+        -Math.PI / 2 + (latitudeIndex / (ROUNDED_PRIMITIVE_LATITUDE_SAMPLES - 1)) * Math.PI
+      return Array.from({ length: ROUNDED_PRIMITIVE_LONGITUDE_SAMPLES }, (_, longitudeIndex) =>
+        surfaceSampleAt(
+          surface,
+          -Math.PI + (longitudeIndex / (ROUNDED_PRIMITIVE_LONGITUDE_SAMPLES - 1)) * Math.PI * 2,
+          latitude
+        )
+      )
+    })
+    cacheSurfaceValue(organicSamplesCache, key, rings)
+  }
+  const limb = rings
+    .flat()
+    .filter(sample => {
+      const cameraNormal = rotateWithQuaternion(pose.orientation, sample.normal)
+      return Math.abs(cameraNormal[2]) <= ORGANIC_LIMB_BAND
+    })
+    .map(sample =>
+      project(rotateWithQuaternion(pose.orientation, sample.point), pose.expression.perspective)
+    )
+  if (limb.length < ORGANIC_OUTLINE_MIN_POINTS) {
+    return smoothClosedPath(
+      densifyClosedPoints(
+        convexHull(
+          rings
+            .flat()
+            .map(sample =>
+              project(
+                rotateWithQuaternion(pose.orientation, sample.point),
+                pose.expression.perspective
+              )
+            )
+        )
+      )
+    )
+  }
+  const centroid: Point3 = [
+    limb.reduce((total, point) => total + point[0], 0) / limb.length,
+    limb.reduce((total, point) => total + point[1], 0) / limb.length,
+    0,
+  ]
+  const ordered = [...limb].sort(
+    (left, right) =>
+      Math.atan2(left[1] - centroid[1], left[0] - centroid[0]) -
+      Math.atan2(right[1] - centroid[1], right[0] - centroid[0])
+  )
+  return smoothClosedPath(densifyClosedPoints(ordered))
+}
+
 const headPath = (pose: AvatarPose, surface: SurfaceConfig) => {
   if (surface.type === 'sphere' || surface.type === 'mickey') {
+    const exactPath = projectedEllipsoidPath(pose, surface)
+    if (exactPath) return exactPath
+  }
+
+  if (
+    surface.type === 'blob' ||
+    surface.type === 'cloud' ||
+    surface.type === 'drop' ||
+    surface.type === 'flower'
+  ) {
+    return projectedOrganicPath(pose, surface)
+  }
+
+  if (surface.type === 'dot') {
+    // WebGL surface: the SVG layer only needs the head silhouette for
+    // eye clipping and editor overlays, so treat it as an exact ellipsoid.
     const exactPath = projectedEllipsoidPath(pose, surface)
     if (exactPath) return exactPath
   }

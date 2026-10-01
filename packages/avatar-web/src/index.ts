@@ -1,6 +1,7 @@
 import {
   advanceAvatarPlayback,
   createAvatarPlaybackState,
+  createTextureShader,
   MAX_BODY_NODES,
   pauseAvatarPlayback,
   playAvatarAnimation,
@@ -129,15 +130,54 @@ export function createAvatar(
   svg.append(defs)
 
   const initialScene = renderAvatarDefinition(definition)
+  const texture = definition.colors.texture ?? { type: 'none' as const }
+  const textureShader = createTextureShader(texture, `${clipId}-body`, clipId)
+  const textureEnabled = texture.type !== 'none'
+  if (textureShader.defs) {
+    defs.insertAdjacentHTML('beforeend', textureShader.defs)
+  }
+  let bodyClipShape: SVGPathElement | null = null
+  if (textureEnabled) {
+    const bodyClip = createSvgElement('clipPath')
+    bodyClip.id = `${clipId}-body`
+    bodyClipShape = createSvgElement('path')
+    bodyClip.append(bodyClipShape)
+    defs.append(bodyClip)
+  }
+  const motionGroup = createSvgElement('g')
+  motionGroup.setAttribute('style', 'isolation:isolate')
+  let glowPath: SVGPathElement | null = null
+  if (textureShader.glowFilterId) {
+    glowPath = createSvgElement('path')
+    glowPath.setAttribute('filter', `url(#${textureShader.glowFilterId})`)
+    glowPath.setAttribute('pointer-events', 'none')
+    motionGroup.append(glowPath)
+  }
   const backPaths = Array.from({ length: bodyPathSlots }, () => createSvgElement('path'))
   const headPath = createSvgElement('path')
+  let underEyeLayer: SVGGElement | null = null
+  if (textureShader.underEye) {
+    underEyeLayer = createSvgElement('g')
+    underEyeLayer.setAttribute('pointer-events', 'none')
+    underEyeLayer.innerHTML = textureShader.underEye
+    motionGroup.append(underEyeLayer)
+  }
   const eyeGroup = createSvgElement('g')
   eyeGroup.setAttribute('clip-path', `url(#${clipId})`)
   const leftPath = createSvgElement('path')
   const rightPath = createSvgElement('path')
   eyeGroup.append(leftPath, rightPath)
   const frontPaths = Array.from({ length: bodyPathSlots }, () => createSvgElement('path'))
-  svg.append(...backPaths, headPath, eyeGroup, ...frontPaths)
+  motionGroup.append(...backPaths, headPath)
+  if (underEyeLayer) motionGroup.append(underEyeLayer)
+  motionGroup.append(eyeGroup, ...frontPaths)
+  if (textureShader.top) {
+    const topLayer = createSvgElement('g')
+    topLayer.setAttribute('pointer-events', 'none')
+    topLayer.innerHTML = textureShader.top
+    motionGroup.append(topLayer)
+  }
+  svg.append(motionGroup)
   host.append(svg)
   mount.append(host)
 
@@ -149,6 +189,18 @@ export function createAvatar(
     clipHeadPath.setAttribute('d', scene.geometry.headPath)
     headPath.setAttribute('d', scene.geometry.headPath)
     headPath.setAttribute('fill', scene.colors.body)
+    if (bodyClipShape) {
+      bodyClipShape.setAttribute(
+        'd',
+        [scene.geometry.headPath, ...scene.geometry.backPaths, ...scene.geometry.frontPaths].join(
+          ''
+        )
+      )
+    }
+    if (glowPath) {
+      glowPath.setAttribute('d', scene.geometry.headPath)
+      glowPath.setAttribute('fill', scene.colors.body)
+    }
     leftPath.setAttribute('d', scene.geometry.leftPath)
     leftPath.setAttribute('fill', scene.colors.eyes)
     leftPath.setAttribute('opacity', scene.geometry.leftVisible ? '1' : '0')

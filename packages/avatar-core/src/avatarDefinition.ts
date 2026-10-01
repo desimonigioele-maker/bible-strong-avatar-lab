@@ -1,6 +1,7 @@
 import Ajv2020, { type ErrorObject } from 'ajv/dist/2020.js'
 import avatarDefinitionSchema from './avatarDefinition.schema.json'
-import type { SurfaceType } from './surfaces'
+import type { DotSurfaceParams, SurfaceType } from './surfaces'
+import type { AvatarTextureConfig } from './texture'
 
 export const AVATAR_DEFINITION_MAX_BYTES = 262_144
 export const AVATAR_DEFINITION_MAX_DEPTH = 32
@@ -30,6 +31,7 @@ export type HexColor = `#${string}`
 export type AvatarColorsDefinition = {
   body: HexColor
   eyes: HexColor
+  texture?: AvatarTextureConfig
 }
 
 export type SurfaceDefinition<TType extends SurfaceType = SurfaceType> = {
@@ -41,6 +43,11 @@ export type SurfaceDefinition<TType extends SurfaceType = SurfaceType> = {
   morphRoundness?: number
   tipRoundness?: number
   baseRoundness?: number
+  seed?: number
+  wobble?: number
+  petals?: number
+  petalDepth?: number
+  dot?: DotSurfaceParams
 }
 
 export type BodyNodeSurfaceType = Exclude<SurfaceType, 'mickey' | 'cursor'>

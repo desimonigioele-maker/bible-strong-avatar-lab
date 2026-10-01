@@ -12,11 +12,25 @@ import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 
 import { InspectorCard, PanelTitle } from '@/app/components/common'
-import { NumericField } from '@/app/components/controls'
+import { AmbientMotionField, ColorField, NumericField } from '@/app/components/controls'
 import { getPreviewGeometry, scaleSurface } from '@/app/studio-utils'
-import { bodyPrimitiveTypes, MAX_BODY_NODES, type BodyNode } from '@/features/avatar/body'
+import {
+  bodyPrimitiveTypes,
+  MAX_BODY_NODES,
+  primarySurfaceTypes,
+  type BodyNode,
+} from '@/features/avatar/body'
 import { SurfaceThumbnail } from '@/features/avatar/components/ExpressionWorkspace'
-import { surfaceLabels, surfacePresets, type SurfaceConfig } from '@/features/avatar/surfaces'
+import {
+  defaultDotSoftness,
+  defaultDotSurfaceParams,
+  dotSoftnessPresets,
+  parseDotParams,
+  surfaceLabels,
+  surfacePresets,
+  type DotSoftness,
+  type SurfaceConfig,
+} from '@/features/avatar/surfaces'
 import type { StudioController } from '@/features/studio/useStudioController'
 
 function BodyStructureThumbnail({
@@ -120,7 +134,7 @@ export function BodyConstructionAccordion({
           </AccordionTrigger>
           <AccordionContent className="body-node-accordion-content">
             <div className="surface-grid body-surface-grid">
-              {bodyPrimitiveTypes.map(type => {
+              {primarySurfaceTypes.map(type => {
                 const previewSurface = type === surface.type ? surface : surfacePresets[type]
                 return (
                   <Button
@@ -228,6 +242,167 @@ export function BodyConstructionAccordion({
                     step={0.01}
                     onActiveChange={active => controller.updateHighlight(active ? 'head' : null)}
                     onChange={baseRoundness => updateSurface({ ...surface, baseRoundness })}
+                  />
+                </>
+              )}
+              {(surface.type === 'blob' || surface.type === 'cloud') && (
+                <>
+                  <NumericField
+                    label="Amplitude des bosses"
+                    value={surface.wobble ?? 0.14}
+                    min={0}
+                    max={1}
+                    step={0.01}
+                    onActiveChange={active => controller.updateHighlight(active ? 'head' : null)}
+                    onChange={wobble => updateSurface({ ...surface, wobble })}
+                  />
+                  <NumericField
+                    label="Graine"
+                    value={surface.seed ?? 0}
+                    min={-100}
+                    max={100}
+                    step={1}
+                    onActiveChange={active => controller.updateHighlight(active ? 'head' : null)}
+                    onChange={seed => updateSurface({ ...surface, seed })}
+                  />
+                </>
+              )}
+              {surface.type === 'flower' && (
+                <>
+                  <NumericField
+                    label="Pétales"
+                    value={surface.petals ?? 6}
+                    min={2}
+                    max={16}
+                    step={1}
+                    onActiveChange={active => controller.updateHighlight(active ? 'head' : null)}
+                    onChange={petals => updateSurface({ ...surface, petals: Math.round(petals) })}
+                  />
+                  <NumericField
+                    label="Profondeur des pétales"
+                    value={surface.petalDepth ?? 0.32}
+                    min={0}
+                    max={1}
+                    step={0.01}
+                    onActiveChange={active => controller.updateHighlight(active ? 'head' : null)}
+                    onChange={petalDepth => updateSurface({ ...surface, petalDepth })}
+                  />
+                </>
+              )}
+              {surface.type === 'dot' && (
+                <>
+                  <AmbientMotionField<DotSoftness>
+                    label="Morbidesse"
+                    value={(surface.dot ?? defaultDotSurfaceParams).softness ?? defaultDotSoftness}
+                    options={[
+                      { value: 'plush', label: 'Peluche' },
+                      { value: 'softer', label: 'Douce' },
+                      { value: 'classic', label: 'Classique' },
+                    ]}
+                    onChange={softness =>
+                      updateSurface({
+                        ...surface,
+                        dot: {
+                          ...(surface.dot ?? defaultDotSurfaceParams),
+                          softness,
+                          sssStrength: dotSoftnessPresets[softness].uSSSStrength,
+                        },
+                      })
+                    }
+                  />
+                  <ColorField
+                    label={t('Couleur du dot')}
+                    value={(surface.dot ?? defaultDotSurfaceParams).color}
+                    onChange={color =>
+                      updateSurface({
+                        ...surface,
+                        dot: { ...(surface.dot ?? defaultDotSurfaceParams), color },
+                      })
+                    }
+                  />
+                  <ColorField
+                    label={t('Subsurface (SSS)')}
+                    value={(surface.dot ?? defaultDotSurfaceParams).sssColor}
+                    onChange={sssColor =>
+                      updateSurface({
+                        ...surface,
+                        dot: { ...(surface.dot ?? defaultDotSurfaceParams), sssColor },
+                      })
+                    }
+                  />
+                  <NumericField
+                    label="SSS"
+                    value={(surface.dot ?? defaultDotSurfaceParams).sssStrength}
+                    min={0}
+                    max={2}
+                    step={0.01}
+                    onChange={sssStrength =>
+                      updateSurface({
+                        ...surface,
+                        dot: { ...(surface.dot ?? defaultDotSurfaceParams), sssStrength },
+                      })
+                    }
+                  />
+                  <NumericField
+                    label={t('Wobble')}
+                    value={(surface.dot ?? defaultDotSurfaceParams).wobble}
+                    min={0}
+                    max={0.3}
+                    step={0.005}
+                    onChange={wobble =>
+                      updateSurface({
+                        ...surface,
+                        dot: { ...(surface.dot ?? defaultDotSurfaceParams), wobble },
+                      })
+                    }
+                  />
+                  <NumericField
+                    label="Seed"
+                    value={(surface.dot ?? defaultDotSurfaceParams).seed}
+                    min={-1000}
+                    max={1000}
+                    step={1}
+                    onChange={seed =>
+                      updateSurface({
+                        ...surface,
+                        dot: parseDotParams({
+                          ...(surface.dot ?? defaultDotSurfaceParams),
+                          seed: Math.round(seed),
+                        }),
+                      })
+                    }
+                  />
+                  <NumericField
+                    label={t('Écart des yeux')}
+                    value={(surface.dot ?? defaultDotSurfaceParams).eyeOffsetX}
+                    min={-0.4}
+                    max={0.4}
+                    step={0.01}
+                    onChange={eyeOffsetX =>
+                      updateSurface({
+                        ...surface,
+                        dot: parseDotParams({
+                          ...(surface.dot ?? defaultDotSurfaceParams),
+                          eyeOffsetX,
+                        }),
+                      })
+                    }
+                  />
+                  <NumericField
+                    label={t('Hauteur des yeux')}
+                    value={(surface.dot ?? defaultDotSurfaceParams).eyeOffsetY}
+                    min={-0.4}
+                    max={0.4}
+                    step={0.01}
+                    onChange={eyeOffsetY =>
+                      updateSurface({
+                        ...surface,
+                        dot: parseDotParams({
+                          ...(surface.dot ?? defaultDotSurfaceParams),
+                          eyeOffsetY,
+                        }),
+                      })
+                    }
                   />
                 </>
               )}

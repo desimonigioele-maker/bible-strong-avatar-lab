@@ -1,4 +1,10 @@
-import { surfaceLabels, surfacePresets, type SurfaceConfig, type SurfaceType } from './surfaces'
+import {
+  parseDotParams,
+  surfaceLabels,
+  surfacePresets,
+  type SurfaceConfig,
+  type SurfaceType,
+} from './surfaces'
 
 export type BodyVector = readonly [number, number, number]
 
@@ -17,12 +23,19 @@ export type AvatarBody = {
 
 export const bodyPrimitiveTypes = [
   'sphere',
+  'blob',
   'cube',
   'capsule',
   'cylinder',
   'cone',
   'diamond',
+  'cloud',
+  'drop',
+  'flower',
 ] as const
+
+/** Shapes the primary (face-carrying) surface can take, including the 3D dot. */
+export const primarySurfaceTypes = [...bodyPrimitiveTypes, 'dot'] as const
 
 export const MAX_BODY_NODES = 16
 
@@ -46,7 +59,13 @@ export const parseSurfaceConfig = (value: unknown, fallback: SurfaceConfig): Sur
     return { ...fallback }
   if (candidate.baseRoundness !== undefined && !finite(candidate.baseRoundness))
     return { ...fallback }
-  return { ...preset, ...candidate, type }
+  if (candidate.seed !== undefined && !finite(candidate.seed)) return { ...fallback }
+  if (candidate.wobble !== undefined && !finite(candidate.wobble)) return { ...fallback }
+  if (candidate.petals !== undefined && !finite(candidate.petals)) return { ...fallback }
+  if (candidate.petalDepth !== undefined && !finite(candidate.petalDepth)) return { ...fallback }
+  const dot = parseDotParams(candidate.dot)
+  if (candidate.dot !== undefined && !dot) return { ...fallback }
+  return { ...preset, ...candidate, type, ...(dot ? { dot } : {}) }
 }
 
 export const parseAvatarBody = (value: unknown, fallbackPrimary: SurfaceConfig): AvatarBody => {

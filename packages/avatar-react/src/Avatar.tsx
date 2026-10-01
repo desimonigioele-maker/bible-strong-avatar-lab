@@ -1,6 +1,7 @@
 import {
   advanceAvatarPlayback,
   createAvatarPlaybackState,
+  createTextureShader,
   MAX_BODY_NODES,
   playAvatarAnimation,
   pauseAvatarPlayback,
@@ -470,6 +471,17 @@ export function Avatar({
   }))
 
   const scene = renderAvatarDefinition(definition)
+  const texture = definition.colors.texture ?? { type: 'none' as const }
+  const textureShader = createTextureShader(texture, `${clipId}-body`, clipId)
+  const textureEnabled = texture.type !== 'none'
+  const paintTextureLayers = () => {
+    const bodyClip = document.getElementById(`${clipId}-body`) as SVGClipPathElement | null
+    bodyClip?.firstElementChild?.setAttribute(
+      'd',
+      [scene.geometry.headPath, ...scene.geometry.backPaths, ...scene.geometry.frontPaths].join('')
+    )
+  }
+  useLayoutEffect(paintTextureLayers)
   return (
     <div
       className={['bs-avatar', className ?? ''].filter(Boolean).join(' ')}
@@ -486,40 +498,64 @@ export function Avatar({
           <clipPath id={clipId}>
             <path ref={clipPathRef} d={scene.geometry.headPath} />
           </clipPath>
+          {textureEnabled && (
+            <clipPath id={`${clipId}-body`}>
+              <path d={scene.geometry.headPath} />
+            </clipPath>
+          )}
         </defs>
-        {Array.from({ length: bodyPathSlots }, (_, index) => (
-          <path
-            ref={element => {
-              backPathRefs.current[index] = element
-            }}
-            d={scene.geometry.backPaths[index] ?? ''}
-            fill={scene.colors.body}
-            key={`back-${index}`}
-          />
-        ))}
-        <path ref={headPathRef} d={scene.geometry.headPath} fill={scene.colors.body} />
-        <g clipPath={`url(#${clipId})`} fill={scene.colors.eyes}>
-          <path
-            ref={leftPathRef}
-            d={scene.geometry.leftPath}
-            opacity={scene.geometry.leftVisible ? 1 : 0}
-          />
-          <path
-            ref={rightPathRef}
-            d={scene.geometry.rightPath}
-            opacity={scene.geometry.rightVisible ? 1 : 0}
-          />
+        {textureShader.defs && (
+          <g aria-hidden="true" dangerouslySetInnerHTML={{ __html: textureShader.defs }} />
+        )}
+        <g style={{ isolation: 'isolate' }}>
+          {textureShader.glowFilterId && (
+            <path
+              d={scene.geometry.headPath}
+              fill={scene.colors.body}
+              filter={`url(#${textureShader.glowFilterId})`}
+              pointerEvents="none"
+            />
+          )}
+          {Array.from({ length: bodyPathSlots }, (_, index) => (
+            <path
+              ref={element => {
+                backPathRefs.current[index] = element
+              }}
+              d={scene.geometry.backPaths[index] ?? ''}
+              fill={scene.colors.body}
+              key={`back-${index}`}
+            />
+          ))}
+          <path ref={headPathRef} d={scene.geometry.headPath} fill={scene.colors.body} />
+          {textureShader.underEye && (
+            <g pointerEvents="none" dangerouslySetInnerHTML={{ __html: textureShader.underEye }} />
+          )}
+          <g clipPath={`url(#${clipId})`} fill={scene.colors.eyes}>
+            <path
+              ref={leftPathRef}
+              d={scene.geometry.leftPath}
+              opacity={scene.geometry.leftVisible ? 1 : 0}
+            />
+            <path
+              ref={rightPathRef}
+              d={scene.geometry.rightPath}
+              opacity={scene.geometry.rightVisible ? 1 : 0}
+            />
+          </g>
+          {Array.from({ length: bodyPathSlots }, (_, index) => (
+            <path
+              ref={element => {
+                frontPathRefs.current[index] = element
+              }}
+              d={scene.geometry.frontPaths[index] ?? ''}
+              fill={scene.colors.body}
+              key={`front-${index}`}
+            />
+          ))}
+          {textureShader.top && (
+            <g pointerEvents="none" dangerouslySetInnerHTML={{ __html: textureShader.top }} />
+          )}
         </g>
-        {Array.from({ length: bodyPathSlots }, (_, index) => (
-          <path
-            ref={element => {
-              frontPathRefs.current[index] = element
-            }}
-            d={scene.geometry.frontPaths[index] ?? ''}
-            fill={scene.colors.body}
-            key={`front-${index}`}
-          />
-        ))}
       </svg>
     </div>
   )

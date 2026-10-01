@@ -66,7 +66,21 @@
       "required": ["type", "width", "height", "depth", "roundness"],
       "properties": {
         "type": {
-          "enum": ["sphere", "mickey", "cursor", "cube", "capsule", "cylinder", "cone", "diamond"]
+          "enum": [
+            "sphere",
+            "mickey",
+            "cursor",
+            "cube",
+            "capsule",
+            "cylinder",
+            "cone",
+            "diamond",
+            "blob",
+            "cloud",
+            "drop",
+            "flower",
+            "dot"
+          ]
         },
         "width": { "$ref": "#/$defs/dimension" },
         "height": { "$ref": "#/$defs/dimension" },
@@ -74,7 +88,35 @@
         "roundness": { "$ref": "#/$defs/roundness" },
         "morphRoundness": { "$ref": "#/$defs/roundness" },
         "tipRoundness": { "$ref": "#/$defs/roundness" },
-        "baseRoundness": { "$ref": "#/$defs/roundness" }
+        "baseRoundness": { "$ref": "#/$defs/roundness" },
+        "seed": { "type": "number", "minimum": -1000, "maximum": 1000 },
+        "wobble": { "$ref": "#/$defs/roundness" },
+        "petals": { "type": "number", "minimum": 2, "maximum": 16 },
+        "petalDepth": { "$ref": "#/$defs/roundness" },
+        "dot": { "$ref": "#/$defs/dotParams" }
+      }
+    },
+    "dotParams": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "color",
+        "wobble",
+        "sssColor",
+        "sssStrength",
+        "eyeOffsetX",
+        "eyeOffsetY",
+        "seed"
+      ],
+      "properties": {
+        "color": { "$ref": "#/$defs/hexColor" },
+        "wobble": { "type": "number", "minimum": 0, "maximum": 2 },
+        "sssColor": { "$ref": "#/$defs/hexColor" },
+        "sssStrength": { "type": "number", "minimum": 0, "maximum": 2 },
+        "eyeOffsetX": { "type": "number", "minimum": -2, "maximum": 2 },
+        "eyeOffsetY": { "type": "number", "minimum": -2, "maximum": 2 },
+        "seed": { "type": "number", "minimum": -1000, "maximum": 1000 },
+        "softness": { "enum": ["classic", "softer", "plush"] }
       }
     },
     "nodeSurface": {
@@ -83,7 +125,21 @@
         {
           "type": "object",
           "properties": {
-            "type": { "enum": ["sphere", "cube", "capsule", "cylinder", "cone", "diamond"] }
+            "type": {
+              "enum": [
+                "sphere",
+                "cube",
+                "capsule",
+                "cylinder",
+                "cone",
+                "diamond",
+                "blob",
+                "cloud",
+                "drop",
+                "flower",
+                "dot"
+              ]
+            }
           }
         }
       ]
@@ -136,7 +192,17 @@
       "required": ["body", "eyes"],
       "properties": {
         "body": { "$ref": "#/$defs/hexColor" },
-        "eyes": { "$ref": "#/$defs/hexColor" }
+        "eyes": { "$ref": "#/$defs/hexColor" },
+        "texture": { "$ref": "#/$defs/texture" }
+      }
+    },
+    "texture": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["type"],
+      "properties": {
+        "type": { "enum": ["none", "felt", "plush", "glossy", "neon"] },
+        "intensity": { "type": "number", "minimum": 0, "maximum": 1 }
       }
     },
     "eye": {

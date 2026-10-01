@@ -1,6 +1,6 @@
 import { RotateCcw } from 'lucide-react'
 import { motion } from 'motion/react'
-import { useEffect, useRef, useState } from 'react'
+import { Suspense, useEffect, useRef, useState } from 'react'
 
 import { Button } from '@/components/ui/button'
 import { useStudioLanguage } from '@/i18n'
@@ -42,7 +42,9 @@ import {
   previewManipulation,
   type ManipulationSession,
 } from '@/features/avatar/manipulationSession'
-import { type SurfaceConfig } from '@/features/avatar/surfaces'
+import { defaultDotSurfaceParams, type SurfaceConfig } from '@/features/avatar/surfaces'
+import { createTextureShader, type AvatarTextureConfig } from '@/features/avatar/texture'
+import { DotBody } from '@/features/rendering/components/DotBody'
 import { type CanvasPreviewTarget } from '@/features/rendering/canvasPreview'
 import { LivePixelAvatarCanvas } from '@/features/rendering/components/PixelAvatarCanvas'
 import { type RenderedRotationGizmo } from '@/features/rendering/renderedRotationGizmo'
@@ -498,6 +500,7 @@ export function AvatarCanvas({
   surface,
   scene,
   colors,
+  texture,
   renderStyle,
   rotationGizmo,
   showWire,
@@ -524,6 +527,7 @@ export function AvatarCanvas({
   surface: SurfaceConfig
   scene: RenderedScene
   colors: RenderedColors
+  texture: AvatarTextureConfig
   renderStyle: AvatarRenderStyle
   rotationGizmo: RenderedRotationGizmo
   showWire: boolean
@@ -593,6 +597,9 @@ export function AvatarCanvas({
     if (!bodyEditing || !selectedBodyNodeId) return null
     return findBodyNodePath(scene, selectedBodyNodeId)
   })()
+  const textureShader = createTextureShader(texture, 'avatar-body-clip', 'stage')
+  const isDotSurface = surface.type === 'dot'
+  const textureEnabled = texture.type !== 'none' && !isDotSurface
 
   const toSvg = (event: React.PointerEvent<SVGElement>): readonly [number, number] => {
     const rectangle = svgRef.current!.getBoundingClientRect()
@@ -793,9 +800,16 @@ export function AvatarCanvas({
           className="avatar-pixel-canvas"
         />
       )}
+      {surface.type === 'dot' && (
+        <div className="dot-webgl-canvas" aria-hidden="true">
+          <Suspense fallback={null}>
+            <DotBody params={surface.dot ?? defaultDotSurfaceParams} />
+          </Suspense>
+        </div>
+      )}
       <svg
         ref={svgRef}
-        className="avatar"
+        className={`avatar${isDotSurface ? ' is-dot-3d' : ''}`}
         viewBox="-150 -150 300 300"
         role="img"
         aria-label={t('Avatar procédural')}
@@ -807,50 +821,95 @@ export function AvatarCanvas({
           <clipPath id="avatar-head-clip">
             <motion.path d={headPath} />
           </clipPath>
+          {textureEnabled && (
+            <clipPath id="avatar-body-clip">
+              <motion.path d={headPath} />
+              {backPaths.map((pathValue, index) => (
+                <motion.path d={pathValue} key={index} />
+              ))}
+              {frontPaths.map((pathValue, index) => (
+                <motion.path d={pathValue} key={index} />
+              ))}
+            </clipPath>
+          )}
         </defs>
-        <motion.g style={{ x: offsetX, y: offsetY }}>
-          {backPaths.map((pathValue, index) => (
-            <motion.path
-              className={`avatar-head ${highlight === 'head' ? 'cyan-outline' : ''}`}
-              d={pathValue}
-              key={index}
-              onPointerDown={event => selectBodyPath(event, backNodeIds.current[index])}
-            />
-          ))}
-          <motion.path
-            className={`avatar-head ${highlight === 'head' ? 'cyan-outline' : ''}`}
-            d={headPath}
-            onPointerDown={event => {
-              onBodyNodeSelect('primary')
-              startDrag(event)
+        {textureEnabled && (
+          <g
+            aria-hidden="true"
+            dangerouslySetInnerHTML={{
+              __html: textureShader.defs,
             }}
           />
-          <g clipPath="url(#avatar-head-clip)">
-            {(showWire || highlight === 'head') &&
-              wirePaths.map((pathValue, index) => (
-                <motion.path className="wire" d={pathValue} key={index} />
-              ))}
-            <motion.path
-              className={`avatar-eye ${selectedSide === -1 || highlight === 'left' || highlight === 'both' ? 'cyan-outline' : ''}`}
-              d={leftPath}
-              opacity={leftOpacity}
-              onPointerDown={event => selectEye(-1, event)}
-            />
-            <motion.path
-              className={`avatar-eye ${selectedSide === 1 || highlight === 'right' || highlight === 'both' ? 'cyan-outline' : ''}`}
-              d={rightPath}
-              opacity={rightOpacity}
-              onPointerDown={event => selectEye(1, event)}
-            />
-          </g>
-          {frontPaths.map((pathValue, index) => (
+        )}
+        <motion.g style={{ x: offsetX, y: offsetY }}>
+          <g style={{ isolation: 'isolate' }}>
+            {textureShader.glowFilterId && (
+              <motion.path
+                d={headPath}
+                fill={colors.body}
+                filter={`url(#${textureShader.glowFilterId})`}
+                pointerEvents="none"
+              />
+            )}
+            {backPaths.map((pathValue, index) => (
+              <motion.path
+                className={`avatar-head ${highlight === 'head' ? 'cyan-outline' : ''}`}
+                d={pathValue}
+                key={index}
+                onPointerDown={event => selectBodyPath(event, backNodeIds.current[index])}
+              />
+            ))}
             <motion.path
               className={`avatar-head ${highlight === 'head' ? 'cyan-outline' : ''}`}
-              d={pathValue}
-              key={index}
-              onPointerDown={event => selectBodyPath(event, frontNodeIds.current[index])}
+              d={headPath}
+              onPointerDown={event => {
+                onBodyNodeSelect('primary')
+                startDrag(event)
+              }}
             />
-          ))}
+            {textureShader.underEye && (
+              <g
+                pointerEvents="none"
+                dangerouslySetInnerHTML={{
+                  __html: textureShader.underEye,
+                }}
+              />
+            )}
+            <g clipPath="url(#avatar-head-clip)">
+              {(showWire || highlight === 'head') &&
+                wirePaths.map((pathValue, index) => (
+                  <motion.path className="wire" d={pathValue} key={index} />
+                ))}
+              <motion.path
+                className={`avatar-eye ${selectedSide === -1 || highlight === 'left' || highlight === 'both' ? 'cyan-outline' : ''}`}
+                d={leftPath}
+                opacity={leftOpacity}
+                onPointerDown={event => selectEye(-1, event)}
+              />
+              <motion.path
+                className={`avatar-eye ${selectedSide === 1 || highlight === 'right' || highlight === 'both' ? 'cyan-outline' : ''}`}
+                d={rightPath}
+                opacity={rightOpacity}
+                onPointerDown={event => selectEye(1, event)}
+              />
+            </g>
+            {frontPaths.map((pathValue, index) => (
+              <motion.path
+                className={`avatar-head ${highlight === 'head' ? 'cyan-outline' : ''}`}
+                d={pathValue}
+                key={index}
+                onPointerDown={event => selectBodyPath(event, frontNodeIds.current[index])}
+              />
+            ))}
+            {textureShader.top && (
+              <g
+                pointerEvents="none"
+                dangerouslySetInnerHTML={{
+                  __html: textureShader.top,
+                }}
+              />
+            )}
+          </g>
         </motion.g>
         {selectedBodyPath && (
           <motion.path className="selection-outline body-selection-outline" d={selectedBodyPath} />

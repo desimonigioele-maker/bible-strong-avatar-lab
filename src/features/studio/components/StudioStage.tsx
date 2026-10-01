@@ -74,6 +74,7 @@ export function StudioStage({ controller }: { controller: StudioController }) {
       surface={surface}
       scene={renderedScene}
       colors={renderedColors}
+      texture={activeAvatar.texture}
       renderStyle={activeAvatar.renderStyle}
       rotationGizmo={renderedRotationGizmo}
       showWire={showWire}
