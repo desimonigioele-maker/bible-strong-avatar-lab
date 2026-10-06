@@ -102,12 +102,6 @@ function mountAvatar(target, options = {}) {
   svg.style.display = 'block';
   svg.style.overflow = 'visible';
   const pixelStyle = DATA.avatar.renderStyle?.type === 'pixel' ? DATA.avatar.renderStyle : null;
-  const dotParams = DATA.avatar.surface?.type === 'dot'
-    ? (DATA.avatar.surface.dot || {
-        color: '#ff2fb4', wobble: 0.055, sssColor: '#ff77cf',
-        sssStrength: 0.95, eyeOffsetX: 0, eyeOffsetY: 0, seed: 1, softness: 'plush',
-      })
-    : null;
   const canvas = document.createElement('canvas');
   const pixelResolution = pixelStyle ? Math.max(8, Math.min(192, Math.round(pixelStyle.resolution))) : 64;
   canvas.width = pixelResolution;
@@ -174,40 +168,28 @@ function mountAvatar(target, options = {}) {
   }
   const renderElement = pixelStyle ? canvas : svg;
   host.replaceChildren(renderElement);
-  let dotScene = null;
-  let dotRenderer = null;
-  let dotRaf = null;
-  if (dotParams && AvatarProceduralEngine.buildDotScene) {
-    const THREE = AvatarProceduralEngine.THREE;
-    dotScene = AvatarProceduralEngine.buildDotScene(dotParams, 128);
-    dotRenderer = new THREE.WebGLRenderer({
-      antialias: true,
-      alpha: true,
-      preserveDrawingBuffer: true,
-    });
-    dotRenderer.setSize(
-      typeof options.size === 'number' ? options.size : renderElement.clientWidth || 480,
-      typeof options.size === 'number' ? options.size : renderElement.clientHeight || 480,
-      false
-    );
-    dotRenderer.toneMapping = THREE.ACESFilmicToneMapping;
-    dotRenderer.toneMappingExposure = 1.05;
-    dotRenderer.outputColorSpace = THREE.SRGBColorSpace;
-    dotRenderer.shadowMap.enabled = true;
-    dotRenderer.shadowMap.type = THREE.PCFSoftShadowMap;
-    dotRenderer.domElement.style.width = '100%';
-    dotRenderer.domElement.style.height = '100%';
-    dotRenderer.domElement.style.display = 'block';
-    host.replaceChildren(dotRenderer.domElement);
-    const dotResize = () => {
-      const width = host.clientWidth || 480;
-      const height = host.clientHeight || 480;
-      dotRenderer.setSize(width, height, false);
-      dotScene.resize(width, height);
-    };
-    window.addEventListener('resize', dotResize);
-    requestAnimationFrame(dotResize);
-  }
+
+  // The dot surface is a material mode over the same geometry the rest of the
+  // avatar uses, so the export bakes it through the very serializer the studio
+  // previews with. Anything else would make the exported avatar a different
+  // picture from the one the author designed. The layer itself is created by
+  // the render loop, which resamples the material against the live pose.
+  // The old blob2d spelling is the pre-rename name and is still accepted so an
+  // avatar exported by an older build keeps animating; everything written from
+  // here on is softDot.
+  const dotSurface =
+    DATA.avatar.surface?.type === 'softDot' ||
+    DATA.avatar.surface?.type === 'blob2d' ||
+    DATA.avatar.surface?.type === 'dot'
+      ? DATA.avatar.surface
+      : null;
+  const dotMarkup = dotSurface && AvatarProceduralEngine.softDotConfigFromSurface ? {} : null;
+
+  // Every dot surface — the material model and the legacy params — exports
+  // through the SVG blob engine below. The old Three.js scene is gone: an
+  // impostor that ships as vector markup must be authored as vector markup,
+  // or the export and the preview become two different pictures.
+  let dotDefs = null;
 
   const ensurePaths = (group, paths, fill) => {
     while (group.children.length < paths.length) group.append(svgElement('path'));
@@ -257,12 +239,93 @@ function mountAvatar(target, options = {}) {
     }
   };
   const render = (time = performance.now()) => {
-    if (dotScene && dotRenderer) {
-      const delta = Math.min((time - (render._last || time)) / 1000, 0.1);
-      render._last = time;
-      dotScene.update(time / 1000, delta);
-      dotScene.render(dotRenderer);
-      if (dotRaf === null && playing) dotRaf = requestAnimationFrame(render);
+    if (dotMarkup) {
+      // The material is resampled only when the pose it is attached to
+      // actually changes, so an animation does not pay for a full surface
+      // evaluation on every single frame.
+      const now = performance.now();
+      const expression = currentPose.expression.bodyMotion !== 'none'
+        ? AvatarProceduralEngine.applyAmbientBodyMotion(
+            currentPose.expression,
+            now - bodyAmbientStartedAt,
+            ambientStrength
+          )
+        : currentPose.expression;
+      const pose = AvatarProceduralEngine.poseFromExpression(expression);
+      const signature = [
+        pose.expression.headX.toFixed(3),
+        pose.expression.headY.toFixed(3),
+        pose.expression.headZ.toFixed(3),
+        pose.expression.perspective.toFixed(4),
+        ambientStrength.toFixed(3),
+      ].join('|');
+      if (signature !== render.dotSignature) {
+        render.dotSignature = signature;
+        const texture = DATA.avatar.texture && DATA.avatar.texture.type !== 'none'
+          ? DATA.avatar.texture
+          : null;
+        const scene = AvatarProceduralEngine.buildBlobScene(
+          AvatarProceduralEngine.softDotConfigFromSurface(DATA.avatar.surface),
+          {
+            idPrefix: 'avatar-dot',
+            quality: (DATA.avatar.surface.softDot ?? DATA.avatar.surface.blob2d)?.quality,
+            texture,
+            pose,
+          }
+        );
+        // The defs are replaced wholesale, never appended. An ambient loop
+        // resamples the material every frame, so appending would leave another
+        // copy of every gradient and filter behind on each one, all under the
+        // same ids: the document would grow without bound, and because
+        // url(#id) always resolves to the first match in the document, the
+        // shading would freeze on the first frame while the silhouette kept
+        // moving.
+        if (!dotDefs) {
+          dotDefs = svgElement('defs');
+          dotDefs.setAttribute('data-avatar-dot-defs', '');
+          svg.append(dotDefs);
+        }
+        dotDefs.innerHTML = scene.defs;
+        const group = motionLayer.querySelector('[data-avatar-dot]') || (() => {
+          const created = svgElement('g');
+          created.setAttribute('data-avatar-dot', '');
+          created.setAttribute('pointer-events', 'none');
+          created.setAttribute('style', 'isolation:isolate');
+          motionLayer.insertBefore(created, eyesLayer);
+          return created;
+        })();
+        group.innerHTML = scene.glow + scene.shadow + scene.body;
+      }
+      const offset = AvatarProceduralEngine.ambientBodyOffset(
+        currentPose.expression,
+        now - bodyAmbientStartedAt,
+        ambientStrength
+      );
+      motionLayer.setAttribute('transform', 'translate(' + offset.x + ' ' + offset.y + ')');
+      // The head still comes from the shared geometry, so the eyes are clipped
+      // and positioned against the same silhouette the studio uses. The eye
+      // offset has to come from the same ambient clock as the sphere path, or
+      // the exported dot holds a stare while the studio version looks around.
+      const eyeOffset = AvatarProceduralEngine.ambientEyeOffset(
+        currentPose.expression,
+        now - eyeAmbientStartedAt,
+        ambientStrength
+      );
+      const geometry = AvatarProceduralEngine.renderAvatar(pose, DATA.avatar.surface, blinkAmount, {
+        includeWire: false,
+        bodyNodes: DATA.avatar.bodyNodes,
+        eyeOffset,
+      });
+      leftEye.setAttribute('d', geometry.leftPath);
+      rightEye.setAttribute('d', geometry.rightPath);
+      leftEye.setAttribute('fill', currentColors.eyes);
+      rightEye.setAttribute('fill', currentColors.eyes);
+      leftEye.style.display = geometry.leftVisible ? '' : 'none';
+      rightEye.style.display = geometry.rightVisible ? '' : 'none';
+      // Deliberately no self-scheduling here, exactly like the other surface
+      // branches. The tick already re-arms itself, so arming from render as
+      // well forks the loop in two: pause and destroy only hold one handle, and
+      // the orphan chain keeps rendering a paused avatar forever.
       return;
     }
     const eyeElapsed = time - eyeAmbientStartedAt;
@@ -347,7 +410,12 @@ function mountAvatar(target, options = {}) {
       render(time);
       if (ambientActive) lastAmbientFrame = time;
     }
-    if (transitionState || blinkState || ambientActive) frameRequest = requestAnimationFrame(tick);
+    // Ambient motion is a reason to keep ticking, not a reason to keep ticking a
+    // paused avatar. Without the paused gate an export with a drifting body
+    // never stops rendering, on any surface, however long it stays paused.
+    if (!paused && (transitionState || blinkState || ambientActive)) {
+      frameRequest = requestAnimationFrame(tick);
+    }
   };
   const requestTick = () => {
     if (frameRequest === null) frameRequest = requestAnimationFrame(tick);
@@ -485,7 +553,7 @@ function mountAvatar(target, options = {}) {
       blinkState = null;
       paused = true;
       playing = false;
-      if (dotRaf !== null) { cancelAnimationFrame(dotRaf); dotRaf = null; }
+      if (frameRequest !== null) { cancelAnimationFrame(frameRequest); frameRequest = null; }
       render();
       return api;
     },
@@ -507,25 +575,11 @@ function mountAvatar(target, options = {}) {
     destroy() {
       clearSchedule();
       if (frameRequest !== null) cancelAnimationFrame(frameRequest);
-      if (dotRaf !== null) cancelAnimationFrame(dotRaf);
-      if (dotRenderer) dotRenderer.dispose();
-      if (dotScene) dotScene.dispose();
       renderElement.remove();
     },
   };
   applyMotion(initialExpression);
   render();
-  if (dotScene && dotRenderer) {
-    const dotLoop = time => {
-      dotRaf = null;
-      if (playing || !paused) {
-        render(time);
-        dotRaf = requestAnimationFrame(dotLoop);
-      }
-    };
-    playing = true;
-    dotRaf = requestAnimationFrame(dotLoop);
-  }
   if (AvatarProceduralEngine.hasAmbientMotion(initialExpression)) requestTick();
   if (options.autoplay !== false) api.play(currentAnimation);
   return api;

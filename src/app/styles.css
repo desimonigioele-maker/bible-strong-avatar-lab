@@ -394,8 +394,14 @@ input {
   display: none;
 }
 
+/* Composition shell only: owns the stacking context so render-layer blend
+   modes never leak outside the avatar, sizes the square stage, and keeps the
+   studio interaction layers above the render layers (z-index 1 = render,
+   z-index 2 = interaction). Volume, lighting and material all come from the
+   renderers below — never from this shell. */
 .avatar-wrap {
   position: relative;
+  isolation: isolate;
   z-index: 1;
   width: min(72vh, 72vw, 680px);
   max-width: 100%;
@@ -471,15 +477,42 @@ input {
   height: 100% !important;
 }
 
-/* The WebGL layer paints the dot body; SVG paths stay for hit-testing only. */
+/* RENDERING CONTRACT — both dot modes draw BODY ONLY.
+
+   is-dot-3d (legacy params) and is-softdot (material model) both render
+   through the dot renderer adapter: WebGL2 impostor when the browser can,
+   the SVG engine otherwise. Neither draws eyes — the fork's SVG eyes stay
+   mounted and carry the expressions (transparent head still counts as
+   painted for pointer-events, so manipulation keeps working). No double
+   rendering: the render layer owns the body pixels, SVG owns eyes and
+   interaction. */
 .avatar.is-dot-3d .avatar-head,
-.avatar.is-dot-3d .avatar-eye {
+.avatar.is-softdot .avatar-head {
   fill: transparent;
   stroke: transparent;
 }
 
-.avatar.is-dot-3d .wire {
+.avatar.is-dot-3d .wire,
+.avatar.is-softdot .wire {
   display: none;
+}
+
+/* The dot render layer hosts whichever renderer the adapter chose: the
+   WebGL2 impostor canvas or the SVG fallback. Either way it fills the shell
+   and never intercepts pointers. */
+.softdot-canvas {
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  pointer-events: none;
+}
+
+.softdot-canvas svg,
+.dot-webgl-canvas svg,
+.dot-webgl2-canvas {
+  display: block;
+  width: 100%;
+  height: 100%;
 }
 
 .export-avatar-summary {
@@ -3940,4 +3973,258 @@ p {
     width: 22px;
     height: 22px;
   }
+}
+
+/* ---------------------------------------------------------------------------
+   DOT MATERIAL LAB
+   A tuning harness, deliberately plain: a dense grid of small previews with
+   readable captions. The chrome stays out of the way because the thing being
+   judged is the dot, not the page.
+--------------------------------------------------------------------------- */
+
+.dot-lab {
+  min-height: 100vh;
+  background: #14161a;
+  color: #e7ebf0;
+  padding: 20px 24px 64px;
+  font-family: ui-sans-serif, system-ui, sans-serif;
+}
+
+.dot-lab-header {
+  position: sticky;
+  top: 0;
+  z-index: 2;
+  background: #14161a;
+  padding-bottom: 12px;
+  border-bottom: 1px solid #262b33;
+  margin-bottom: 18px;
+}
+
+.dot-lab-header h1 {
+  margin: 0 0 10px;
+  font-size: 15px;
+  letter-spacing: 0.14em;
+  font-weight: 600;
+}
+
+.dot-lab-controls {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+
+.dot-lab-controls button {
+  background: #1e232b;
+  color: #c8d0da;
+  border: 1px solid #333a45;
+  border-radius: 7px;
+  padding: 5px 11px;
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.dot-lab-controls button.is-active {
+  background: #2f6fd0;
+  border-color: #2f6fd0;
+  color: #fff;
+}
+
+.dot-lab-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 12px;
+  color: #9aa5b1;
+}
+
+.dot-lab-hint {
+  margin: 10px 0 0;
+  font-size: 11px;
+  color: #6f7a86;
+}
+
+.dot-lab-hint a {
+  color: #6ea8fe;
+}
+
+.dot-lab-row {
+  margin-bottom: 22px;
+}
+
+.dot-lab-row h2 {
+  margin: 0 0 8px;
+  font-size: 11px;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: #7b8794;
+  font-weight: 600;
+}
+
+.dot-lab-cells {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(190px, 1fr));
+  gap: 10px;
+}
+
+.dot-lab-cell {
+  margin: 0;
+  background: #191d23;
+  border: 1px solid #232a33;
+  border-radius: 10px;
+  overflow: hidden;
+}
+
+.dot-lab-preview {
+  display: block;
+  width: 100%;
+  aspect-ratio: 1;
+}
+
+/* Three panels in compare mode, two otherwise. A fixed column count keeps the
+   panels comparable between modes, which is the entire point of the view. */
+.dot-lab-compare {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  background: repeating-conic-gradient(#1b2027 0% 25%, #191d23 0% 50%) 50% / 14px 14px;
+}
+
+.dot-lab-compare > * {
+  min-width: 0;
+}
+
+/* Cells are wrapped so each render carries a `data-slot` for the measurement
+   panel; the wrapper has to stay a plain block box or the SVG inside breaks
+   the three-column comparison. */
+.dot-lab-compare > span {
+  display: block;
+}
+
+.dot-lab-cell figcaption {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  padding: 6px 8px 7px;
+  font-size: 10px;
+  line-height: 1.35;
+  color: #6f7a86;
+  border-top: 1px solid #232a33;
+}
+
+.dot-lab-cell figcaption strong {
+  color: #d7dee7;
+  font-weight: 600;
+  font-size: 11px;
+}
+
+/* The measurement panel (FASE A). It is a report, not a dashboard: one line
+   per renderer, three numbers each, and a pass mark against the threshold
+   taken from the reference artwork. */
+.dot-lab-metrics {
+  margin-top: 10px;
+  padding: 8px 10px 9px;
+  background: #191d23;
+  border: 1px solid #232a33;
+  border-radius: 8px;
+}
+
+.dot-lab-metrics-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+}
+
+.dot-lab-metrics-title {
+  font-size: 11px;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: #7b8794;
+  font-weight: 600;
+}
+
+.dot-lab-metrics-head button {
+  background: #1e232b;
+  color: #c8d0da;
+  border: 1px solid #333a45;
+  border-radius: 7px;
+  padding: 4px 11px;
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.dot-lab-metrics-head button:disabled {
+  opacity: 0.6;
+  cursor: default;
+}
+
+.dot-lab-metrics-hint,
+.dot-lab-metrics-error {
+  font-size: 11px;
+  color: #6f7a86;
+}
+
+.dot-lab-metrics-error {
+  color: #e08585;
+}
+
+.dot-lab-metrics-body {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  gap: 14px;
+  margin-top: 9px;
+  padding-top: 9px;
+  border-top: 1px solid #232a33;
+}
+
+.dot-lab-slot-report {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 172px;
+}
+
+.dot-lab-slot-report strong {
+  font-size: 11px;
+  color: #d7dee7;
+  font-weight: 600;
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.dot-lab-slot-report strong em {
+  font-style: normal;
+  color: #6f7a86;
+  font-weight: 400;
+}
+
+.dot-lab-metric {
+  display: grid;
+  grid-template-columns: 30px 1fr 12px;
+  gap: 8px;
+  font-size: 10.5px;
+  font-variant-numeric: tabular-nums;
+  color: #8b96a3;
+}
+
+.dot-lab-metric-label {
+  color: #6f7a86;
+}
+
+.dot-lab-metric.is-pass .dot-lab-metric-mark {
+  color: #5fc98d;
+}
+
+.dot-lab-metric.is-fail .dot-lab-metric-mark,
+.dot-lab-metric.is-fail .dot-lab-metric-value {
+  color: #e08585;
+}
+
+.dot-lab-metrics-note {
+  font-size: 10.5px;
+  color: #59616c;
+  align-self: flex-end;
+  margin-left: auto;
 }

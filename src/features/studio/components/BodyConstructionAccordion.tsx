@@ -1,6 +1,6 @@
 import { ChevronDown, Plus } from 'lucide-react'
 import { AnimatePresence, motion } from 'motion/react'
-import { useState } from 'react'
+import { useState, type ReactNode } from 'react'
 
 import {
   Accordion,
@@ -22,16 +22,34 @@ import {
 } from '@/features/avatar/body'
 import { SurfaceThumbnail } from '@/features/avatar/components/ExpressionWorkspace'
 import {
+  softDotRenderers,
+  defaultSoftDotParams,
   defaultDotSoftness,
   defaultDotSurfaceParams,
   dotSoftnessPresets,
+  parseSoftDotParams,
   parseDotParams,
   surfaceLabels,
   surfacePresets,
+  type SoftDotQuality,
+  type SoftDotSurfaceParams,
   type DotSoftness,
   type SurfaceConfig,
 } from '@/features/avatar/surfaces'
+import { softDotParamsToConfig, configToSoftDotParams } from '@/features/avatar/softDot'
+import { blobMaterialPresets } from '@/features/rendering/blob'
+import { findBlobMaterialPreset } from '@/features/rendering/blob/blobPresets'
+import {
+  allLocks,
+  randomizeBlobConfig,
+  randomizeGroups,
+  unlockedGroups,
+  type RandomizeGroup,
+  type RandomizeLocks,
+} from '@/features/rendering/blob/blobRandomize'
+import { avatarTextureTypes, textureLabels } from '@/features/avatar/texture'
 import type { StudioController } from '@/features/studio/useStudioController'
+import type { AvatarTextureConfig } from '@bible-strong/avatar-core'
 
 function BodyStructureThumbnail({
   surface,
@@ -77,6 +95,278 @@ function BodyStructureThumbnail({
   )
 }
 
+const blobQualityLabels: { value: SoftDotQuality; label: string }[] = [
+  { value: 'low', label: 'Basse' },
+  { value: 'medium', label: 'Moyenne' },
+  { value: 'high', label: 'Haute' },
+  { value: 'ultra', label: 'Ultra' },
+]
+
+/** French source strings for the randomize locks, translated through `t`. */
+const randomizeGroupLabels: Record<RandomizeGroup, string> = {
+  shape: 'Forme',
+  material: 'Matière',
+  light: 'Lumière',
+  motion: 'Mouvement',
+}
+
+const blobRandomSeeds = [918273, 41207, 77341, 20518, 63092, 88104, 35476, 11729]
+
+/**
+ * Inspector for the procedural 2.5D blob surface.
+ *
+ * Presets come first and fine-tuning second: most users should reach a good
+ * look without touching every slider (FASI 49).
+ */
+/**
+ * DOT inspector (FASI 38, 39, 40, 43).
+ *
+ * The panel is grouped by what the author is actually deciding, not by which
+ * module owns the field. Someone tuning a dot thinks in terms of "this shape,
+ * this light, this surface", and a flat wall of thirty sliders is unreadable
+ * at that level of intent.
+ *
+ * The five sections below are the common path. `Advanced` holds the renderer
+ * choice and the debug overlays, which are the two things an author reaches for
+ * when something is wrong rather than when something is being designed.
+ */
+function SoftDotFields({
+  params,
+  texture,
+  t,
+  onChange,
+  onTextureChange,
+}: {
+  params: SoftDotSurfaceParams
+  texture: AvatarTextureConfig
+  t: (value: string) => string
+  onChange: (params: SoftDotSurfaceParams) => void
+  onTextureChange: (texture: AvatarTextureConfig) => void
+}) {
+  const update = (patch: Partial<SoftDotSurfaceParams>) =>
+    onChange(parseSoftDotParams({ ...params, ...patch }) ?? params)
+
+  const applyPreset = (presetId: string) => {
+    const preset = findBlobMaterialPreset(presetId)
+    if (!preset) return
+    // The preset replaces the material character but keeps the user's own seed
+    // and light position, so switching material never re-rolls the shape.
+    update({
+      presetId,
+      color: preset.material.baseColor,
+      roughness: preset.material.roughness,
+      sheen: preset.material.sheen,
+      fiber: preset.material.fiber,
+      grain: preset.material.grain,
+      macroNoise: preset.material.macroNoise,
+      microNoise: preset.material.microNoise,
+      specular: preset.material.specular,
+      colorVariation: preset.material.colorVariation,
+      deformation: preset.material.deformation,
+      colorSpots: preset.material.colorSpots,
+    })
+  }
+
+  const field = (
+    label: string,
+    value: number,
+    min: number,
+    max: number,
+    step: number,
+    key: keyof SoftDotSurfaceParams
+  ) => (
+    <NumericField
+      label={label}
+      value={value}
+      min={min}
+      max={max}
+      step={step}
+      onChange={next => update({ [key]: next })}
+    />
+  )
+
+  const section = (title: string, subtitle: string, body: ReactNode) => (
+    <AccordionItem value={title} className="dot-inspector-section">
+      <AccordionTrigger>{t(title)}</AccordionTrigger>
+      <AccordionContent>
+        <p className="dot-inspector-hint">{t(subtitle)}</p>
+        {body}
+      </AccordionContent>
+    </AccordionItem>
+  )
+
+  const randomize = (groups: readonly RandomizeGroup[]) => {
+    const result = randomizeBlobConfig(softDotParamsToConfig(params), groups, params.seed)
+    // The bridge is the only writer of the document shape, so a randomize goes
+    // through it like any other edit.
+    onChange(parseSoftDotParams(configToSoftDotParams(result)) ?? params)
+  }
+
+  return (
+    <Accordion defaultValue={[t('Forme'), t('Matière')]} className="dot-inspector">
+      {section(
+        'Forme',
+        'La silhouette du dot. Le grain la rend organique, pas bruyante.',
+        <>
+          <NumericField
+            label="Seed"
+            value={params.seed}
+            min={0}
+            max={2147483000}
+            step={1}
+            onChange={seed => update({ seed: Math.round(seed) })}
+          />
+        </>
+      )}
+
+      {section(
+        'Lumière',
+        'La lumière appartient à la scène : le dot tourne, la lumière reste.',
+        <>
+          {field('Intensité', params.intensity, 0, 1, 0.01, 'intensity')}
+          {field('Élévation', params.lightZ, 0.05, 1, 0.01, 'lightZ')}
+          {field('Douceur', params.softness, 0, 1, 0.01, 'softness')}
+          {field('Ambiance', params.ambient, 0, 1, 0.01, 'ambient')}
+          {field('Remplissage', params.fillIntensity, 0, 1, 0.01, 'fillIntensity')}
+          {field('Rim', params.rimStrength, 0, 1, 0.01, 'rimStrength')}
+          {field('Cavité', params.cavityStrength, 0, 1, 0.01, 'cavityStrength')}
+          {field('Occlusion', params.aoStrength, 0, 1, 0.01, 'aoStrength')}
+        </>
+      )}
+
+      {section(
+        'Matière',
+        'Le preset change tout le caractère de la surface, pas seulement la couleur.',
+        <>
+          <AmbientMotionField
+            label="Matière"
+            value={params.presetId}
+            options={blobMaterialPresets.map(preset => ({
+              value: preset.id,
+              label: preset.label,
+            }))}
+            onChange={applyPreset}
+          />
+          <ColorField
+            label={t('Couleur du blob')}
+            value={params.color}
+            onChange={color => update({ color })}
+          />
+          {field('Rugosité', params.roughness, 0, 1, 0.01, 'roughness')}
+          {field('Spéculaire', params.specular, 0, 1, 0.01, 'specular')}
+          {field('Sheen', params.sheen, 0, 1, 0.01, 'sheen')}
+          {field('Taches de couleur', params.colorSpots, 1, 5, 1, 'colorSpots')}
+          <AmbientMotionField
+            label={t('Texture du corps')}
+            value={texture.type}
+            options={avatarTextureTypes.map(type => ({ value: type, label: textureLabels[type] }))}
+            onChange={next =>
+              onTextureChange(
+                next === 'none'
+                  ? { type: 'none' }
+                  : { type: next, intensity: texture.intensity ?? 0.55 }
+              )
+            }
+          />
+          {texture.type !== 'none' && (
+            <NumericField
+              label={t('Intensité de la texture')}
+              value={texture.intensity ?? 0.55}
+              min={0}
+              max={1}
+              step={0.01}
+              onChange={intensity => onTextureChange({ ...texture, intensity })}
+            />
+          )}
+        </>
+      )}
+
+      {section(
+        'Surface',
+        'La texture se voit de près, pas de loin. Au-delà, elle devient du bruit.',
+        <>
+          {field('Macro bruit', params.macroNoise, 0, 1, 0.01, 'macroNoise')}
+          {field('Micro bruit', params.microNoise, 0, 1, 0.01, 'microNoise')}
+          {field('Grain', params.grain, 0, 1, 0.01, 'grain')}
+          {field('Fibre', params.fiber, 0, 1, 0.01, 'fiber')}
+          {field('Variation de couleur', params.colorVariation, 0, 0.05, 0.005, 'colorVariation')}
+          {field('Irrégularité normale', params.deformation, 0, 0.3, 0.005, 'deformation')}
+        </>
+      )}
+
+      {section(
+        'Avancé',
+        'Choix du moteur de rendu et outils de diagnostic.',
+        <>
+          <AmbientMotionField
+            label="Qualité"
+            value={params.quality}
+            options={blobQualityLabels}
+            onChange={quality => update({ quality })}
+          />
+          <AmbientMotionField
+            label="Moteur de rendu"
+            value={params.renderer}
+            options={softDotRenderers.map(value => ({
+              value,
+              label: value === 'field' ? 'Champ échantillonné' : 'Par pixel (filtre SVG)',
+            }))}
+            onChange={renderer => update({ renderer })}
+          />
+          <RandomizeControls onRandomize={randomize} t={t} />
+        </>
+      )}
+    </Accordion>
+  )
+}
+
+/**
+ * Randomize with locks (FASI 40).
+ *
+ * The locks are the point: "randomize" that can silently discard a face or a
+ * chosen material is worse than no button, so each group states what it will
+ * and will not touch before it is pressed.
+ */
+function RandomizeControls({
+  onRandomize,
+  t,
+}: {
+  onRandomize: (groups: readonly RandomizeGroup[]) => void
+  t: (value: string) => string
+}) {
+  const [locks, setLocks] = useState<RandomizeLocks>(allLocks(false))
+
+  const toggle = (group: RandomizeGroup) =>
+    setLocks(current => ({ ...current, [group]: !current[group] }))
+
+  return (
+    <div className="dot-randomize">
+      <div className="dot-randomize-locks">
+        {randomizeGroups.map(group => (
+          <label key={group} className="dot-randomize-lock">
+            <input type="checkbox" checked={locks[group]} onChange={() => toggle(group)} />
+            {t(randomizeGroupLabels[group])}
+          </label>
+        ))}
+      </div>
+      <div className="dot-randomize-actions">
+        <Button variant="secondary" size="sm" onClick={() => onRandomize(unlockedGroups(locks))}>
+          {t('Variante')}
+        </Button>
+        <Button variant="secondary" size="sm" onClick={() => onRandomize(['material'])}>
+          {t('Matière')}
+        </Button>
+        <Button variant="secondary" size="sm" onClick={() => onRandomize(['light'])}>
+          {t('Lumière')}
+        </Button>
+      </div>
+      <p className="dot-inspector-hint">
+        {t('Les groupes verrouillés ne changent jamais. Le grain avance à chaque variante.')}
+      </p>
+    </div>
+  )
+}
+
 export function BodyConstructionAccordion({
   controller,
   reduceMotion,
@@ -87,6 +377,7 @@ export function BodyConstructionAccordion({
   const [addOpen, setAddOpen] = useState(false)
   const {
     addBodyNode,
+    activeAvatar,
     bodyNodes,
     deleteSelectedBodyNode,
     duplicateSelectedBodyNode,
@@ -97,6 +388,7 @@ export function BodyConstructionAccordion({
     surface,
     t,
     updateNodeVector,
+    updateAvatarTexture,
     updateSelectedBodyNode,
     updateSurface,
   } = controller
@@ -405,6 +697,15 @@ export function BodyConstructionAccordion({
                     }
                   />
                 </>
+              )}
+              {surface.type === 'softDot' && (
+                <SoftDotFields
+                  params={surface.softDot ?? defaultSoftDotParams}
+                  texture={activeAvatar.texture}
+                  t={t}
+                  onChange={softDot => updateSurface({ ...surface, softDot })}
+                  onTextureChange={updateAvatarTexture}
+                />
               )}
             </div>
           </AccordionContent>

@@ -1,4 +1,5 @@
 import {
+  parseSoftDotParams,
   parseDotParams,
   surfaceLabels,
   surfacePresets,
@@ -35,11 +36,27 @@ export const bodyPrimitiveTypes = [
 ] as const
 
 /** Shapes the primary (face-carrying) surface can take, including the 3D dot. */
-export const primarySurfaceTypes = [...bodyPrimitiveTypes, 'dot'] as const
+export const primarySurfaceTypes = [...bodyPrimitiveTypes, 'dot', 'softDot'] as const
 
 export const MAX_BODY_NODES = 16
 
 const allSurfaceTypes = Object.keys(surfacePresets) as SurfaceType[]
+
+/**
+ * Surface type names that predate the DOT rename.
+ *
+ * Accepted on read so a document or an exported avatar written by an older
+ * build still opens, and resolved to the canonical name immediately so nothing
+ * downstream ever sees the old spelling again.
+ */
+const legacySurfaceTypes: Record<string, SurfaceType> = { blob2d: 'softDot' }
+
+const resolveSurfaceType = (value: unknown, fallback: SurfaceType): SurfaceType => {
+  if (typeof value !== 'string') return fallback
+  if (allSurfaceTypes.includes(value as SurfaceType)) return value as SurfaceType
+  return legacySurfaceTypes[value] ?? fallback
+}
+
 const finite = (value: unknown): value is number =>
   typeof value === 'number' && Number.isFinite(value)
 const vector = (value: unknown): value is BodyVector =>
@@ -48,8 +65,7 @@ const vector = (value: unknown): value is BodyVector =>
 export const parseSurfaceConfig = (value: unknown, fallback: SurfaceConfig): SurfaceConfig => {
   if (!value || typeof value !== 'object') return { ...fallback }
   const candidate = value as Partial<SurfaceConfig>
-  const type =
-    candidate.type && allSurfaceTypes.includes(candidate.type) ? candidate.type : fallback.type
+  const type = resolveSurfaceType(candidate.type, fallback.type)
   const preset = surfacePresets[type]
   const numericFields = ['width', 'height', 'depth', 'roundness'] as const
   if (numericFields.some(field => !finite(candidate[field]))) return { ...fallback }
@@ -65,7 +81,20 @@ export const parseSurfaceConfig = (value: unknown, fallback: SurfaceConfig): Sur
   if (candidate.petalDepth !== undefined && !finite(candidate.petalDepth)) return { ...fallback }
   const dot = parseDotParams(candidate.dot)
   if (candidate.dot !== undefined && !dot) return { ...fallback }
-  return { ...preset, ...candidate, type, ...(dot ? { dot } : {}) }
+  const softDotInput = candidate.softDot ?? candidate.blob2d
+  const softDot = parseSoftDotParams(softDotInput)
+  if (softDotInput !== undefined && !softDot) return { ...fallback }
+  const parsed: SurfaceConfig = {
+    ...preset,
+    ...candidate,
+    type,
+    ...(dot ? { dot } : {}),
+    ...(softDot ? { softDot } : {}),
+  }
+  // The legacy alias never survives the parse: a document that carried it is
+  // rewritten in the canonical shape the moment anything reads it.
+  delete parsed.blob2d
+  return parsed
 }
 
 export const parseAvatarBody = (value: unknown, fallbackPrimary: SurfaceConfig): AvatarBody => {

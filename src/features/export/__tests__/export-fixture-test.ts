@@ -61,7 +61,12 @@ describe('standalone export fixture (A5 maintenance)', () => {
     writeFileSync(join(fixtureDir, 'index.html'), generateJavaScriptAvatarHtml(payload, 'en'))
 
     const moduleSource = readFileSync(join(fixtureDir, 'avatar.js'), 'utf8')
-    expect(moduleSource).toContain('AvatarProceduralEngine.buildDotScene')
+    // Every dot surface exports through the SVG blob engine; the Three.js
+    // scene (buildDotScene/THREE) is retired from the runtime entirely.
+    expect(moduleSource).toContain('AvatarProceduralEngine.buildBlobScene')
+    expect(moduleSource).toContain('softDotConfigFromSurface')
+    expect(moduleSource).not.toContain('buildDotScene')
+    expect(moduleSource).not.toContain('THREE')
     expect(moduleSource).toContain('"softness":"softer"')
     expect(moduleSource).toContain('#7c5cff')
     expect(existsSync(join(fixtureDir, 'index.html'))).toBe(true)

@@ -269,6 +269,47 @@ const project = (point: Point3, perspective: number): Point3 => {
   return [point[0] * scale, point[1] * scale, point[2]]
 }
 
+/**
+ * The studio's single perspective projection, exposed so a material renderer
+ * can share it instead of implementing a second one.
+ *
+ * Renderers that need a surface sample in screen space (the dot material, a
+ * lighting model, an export bake) call this instead of `renderAvatar`, because
+ * they need the point *and* its normal, not a bag of paths.
+ */
+export const projectPoint = (point: Point3, perspective: number): Point3 =>
+  project(point, perspective)
+
+/**
+ * Samples a surface and returns it in screen space: the projected point plus
+ * the normal rotated into camera space.
+ *
+ * This is the seam between the geometry framework and the material renderers.
+ * A material never re-derives a sphere or a perspective; it asks for the
+ * surface it is attached to and lights the answer.
+ */
+export const projectSurfaceSample = (
+  pose: AvatarPose,
+  surface: SurfaceConfig,
+  longitude: number,
+  latitude: number
+): ProjectedSurfacePoint =>
+  projectLocalSurfacePoint(pose, localSurfacePoint(surface, longitude, latitude))
+
+/** Applies a camera orientation to a surface sample without projecting it. */
+export const orientSurfaceSample = (
+  pose: AvatarPose,
+  surface: SurfaceConfig,
+  longitude: number,
+  latitude: number
+): LocalSurfacePoint => {
+  const sample = localSurfacePoint(surface, longitude, latitude)
+  return {
+    point: rotateWithQuaternion(pose.orientation, sample.point),
+    normal: rotateWithQuaternion(pose.orientation, sample.normal),
+  }
+}
+
 export const axisVector = (axis: 'x' | 'y' | 'z'): Point3 =>
   axis === 'x' ? [1, 0, 0] : axis === 'y' ? [0, 1, 0] : [0, 0, 1]
 

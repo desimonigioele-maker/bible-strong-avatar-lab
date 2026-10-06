@@ -159,6 +159,69 @@ describe('avatar studio translations', () => {
     )
   })
 
+  it('keeps the DOT inspector sections synchronized in all three languages', () => {
+    expect(translateStudioText('Forme', 'en')).toBe('Shape')
+    expect(translateStudioText('Forme', 'zh-CN')).toBe('形状')
+    expect(translateStudioText('Lumière', 'en')).toBe('Light')
+    expect(translateStudioText('Lumière', 'zh-CN')).toBe('光线')
+    expect(translateStudioText('Surface', 'en')).toBe('Surface')
+    expect(translateStudioText('Surface', 'zh-CN')).toBe('表面')
+    expect(translateStudioText('Avancé', 'en')).toBe('Advanced')
+    expect(translateStudioText('Avancé', 'zh-CN')).toBe('高级')
+    expect(translateStudioText('Mouvement', 'en')).toBe('Motion')
+    expect(translateStudioText('Mouvement', 'zh-CN')).toBe('运动')
+    expect(translateStudioText('Moteur de rendu', 'en')).toBe('Renderer')
+    expect(translateStudioText('Moteur de rendu', 'zh-CN')).toBe('渲染器')
+    expect(translateStudioText('Champ échantillonné', 'en')).toBe('Sampled field')
+    expect(translateStudioText('Champ échantillonné', 'zh-CN')).toBe('采样场')
+    expect(translateStudioText('Par pixel (filtre SVG)', 'en')).toBe('Per-pixel (SVG filter)')
+    expect(translateStudioText('Par pixel (filtre SVG)', 'zh-CN')).toBe('逐像素（SVG 滤镜）')
+    expect(translateStudioText('Rim', 'en')).toBe('Rim')
+    expect(translateStudioText('Rim', 'zh-CN')).toBe('轮廓光')
+    expect(translateStudioText('Sheen', 'en')).toBe('Sheen')
+    expect(translateStudioText('Sheen', 'zh-CN')).toBe('光泽层')
+    expect(translateStudioText('Grain', 'en')).toBe('Grain')
+    expect(translateStudioText('Grain', 'zh-CN')).toBe('颗粒')
+  })
+
+  it('keeps the DOT inspector explanations synchronized in all three languages', () => {
+    const silhouette = 'La silhouette du dot. Le grain la rend organique, pas bruyante.'
+    expect(translateStudioText(silhouette, 'fr')).toBe(silhouette)
+    expect(translateStudioText(silhouette, 'en')).toBe(
+      'The dot silhouette. Grain makes it organic, not noisy.'
+    )
+    expect(translateStudioText(silhouette, 'zh-CN')).toBe(
+      'dot 的轮廓。颗粒感让它显得有机，而不是杂乱。'
+    )
+    const light = 'La lumière appartient à la scène : le dot tourne, la lumière reste.'
+    expect(translateStudioText(light, 'en')).toBe(
+      'Light belongs to the scene: the dot turns, the light stays.'
+    )
+    expect(translateStudioText(light, 'zh-CN')).toBe('光线属于场景：dot 在转，光线不动。')
+    const material = 'Le preset change tout le caractère de la surface, pas seulement la couleur.'
+    expect(translateStudioText(material, 'en')).toBe(
+      'A preset changes the whole character of the surface, not only its color.'
+    )
+    expect(translateStudioText(material, 'zh-CN')).toBe('预设改变的是整个表面的质感，不只是颜色。')
+    const texture = 'La texture se voit de près, pas de loin. Au-delà, elle devient du bruit.'
+    expect(translateStudioText(texture, 'en')).toBe(
+      'Texture reads up close, not far away. Past that it is only noise.'
+    )
+    expect(translateStudioText(texture, 'zh-CN')).toBe(
+      '纹理在近处可见，远处不可见。再远就只剩噪点。'
+    )
+    const advanced = 'Choix du moteur de rendu et outils de diagnostic.'
+    expect(translateStudioText(advanced, 'en')).toBe('Renderer choice and diagnostic tools.')
+    expect(translateStudioText(advanced, 'zh-CN')).toBe('渲染方式选择与诊断工具。')
+    const locks = 'Les groupes verrouillés ne changent jamais. Le grain avance à chaque variante.'
+    expect(translateStudioText(locks, 'en')).toBe(
+      'Locked groups never change. Grain advances on every variant.'
+    )
+    expect(translateStudioText(locks, 'zh-CN')).toBe(
+      '锁定的分组永不改变。每次切换变体都会推进颗粒。'
+    )
+  })
+
   it('covers every configured state description in English', () => {
     expect(translateStudioText('Rythme régulier et expressions concentrées.', 'en')).toBe(
       'Steady rhythm and focused expressions.'

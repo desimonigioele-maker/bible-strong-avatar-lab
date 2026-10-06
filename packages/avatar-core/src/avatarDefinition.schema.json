@@ -79,7 +79,9 @@
             "cloud",
             "drop",
             "flower",
-            "dot"
+            "dot",
+            "softDot",
+            "blob2d"
           ]
         },
         "width": { "$ref": "#/$defs/dimension" },
@@ -93,7 +95,59 @@
         "wobble": { "$ref": "#/$defs/roundness" },
         "petals": { "type": "number", "minimum": 2, "maximum": 16 },
         "petalDepth": { "$ref": "#/$defs/roundness" },
-        "dot": { "$ref": "#/$defs/dotParams" }
+        "dot": { "$ref": "#/$defs/dotParams" },
+        "softDot": { "$ref": "#/$defs/softDotParams" },
+        "blob2d": { "$ref": "#/$defs/softDotParams" }
+      }
+    },
+    "softDotParams": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "seed",
+        "presetId",
+        "color",
+        "roughness",
+        "sheen",
+        "fiber",
+        "grain",
+        "macroNoise",
+        "microNoise",
+        "specular",
+        "lightX",
+        "lightY",
+        "intensity",
+        "rimStrength",
+        "cavityStrength",
+        "quality",
+        "face"
+      ],
+      "properties": {
+        "seed": { "type": "number", "minimum": 0, "maximum": 2147483646 },
+        "presetId": { "type": "string", "minLength": 1 },
+        "color": { "$ref": "#/$defs/hexColor" },
+        "roughness": { "$ref": "#/$defs/roundness" },
+        "sheen": { "$ref": "#/$defs/roundness" },
+        "fiber": { "$ref": "#/$defs/roundness" },
+        "grain": { "$ref": "#/$defs/roundness" },
+        "macroNoise": { "$ref": "#/$defs/roundness" },
+        "microNoise": { "$ref": "#/$defs/roundness" },
+        "specular": { "$ref": "#/$defs/roundness" },
+        "lightX": { "type": "number", "minimum": -1, "maximum": 1 },
+        "lightY": { "type": "number", "minimum": -1, "maximum": 1 },
+        "intensity": { "$ref": "#/$defs/roundness" },
+        "rimStrength": { "$ref": "#/$defs/roundness" },
+        "cavityStrength": { "$ref": "#/$defs/roundness" },
+        "quality": { "enum": ["low", "medium", "high", "ultra"] },
+        "face": { "type": "boolean" },
+        "lightZ": { "type": "number", "minimum": 0.05, "maximum": 1 },
+        "softness": { "$ref": "#/$defs/roundness" },
+        "ambient": { "$ref": "#/$defs/roundness" },
+        "fillIntensity": { "$ref": "#/$defs/roundness" },
+        "aoStrength": { "$ref": "#/$defs/roundness" },
+        "colorVariation": { "$ref": "#/$defs/roundness" },
+        "deformation": { "$ref": "#/$defs/roundness" },
+        "colorSpots": { "type": "integer", "minimum": 1, "maximum": 5 }
       }
     },
     "dotParams": {

@@ -4,6 +4,7 @@ import {
   parseTextureConfig,
   poseFromExpression,
   renderAvatar,
+  sameTexture,
   surfacePointAt,
   surfacePresets,
   validateAvatarDefinition,
@@ -143,6 +144,33 @@ describe('avatar textures', () => {
     })
     expect(parseTextureConfig({ type: 'unknown' })).toEqual({ type: 'none' })
     expect(parseTextureConfig(undefined)).toEqual({ type: 'none' })
+  })
+
+  it('parses tints leniently: valid hex is lowercased, anything else dropped', () => {
+    expect(parseTextureConfig({ type: 'plush', tint: '#AABBCC' })).toEqual({
+      type: 'plush',
+      tint: '#aabbcc',
+    })
+    expect(parseTextureConfig({ type: 'plush', tint: 'rebeccapurple' })).toEqual({ type: 'plush' })
+    expect(parseTextureConfig({ type: 'plush', tint: 42 })).toEqual({ type: 'plush' })
+    expect(
+      sameTexture({ type: 'plush', tint: '#ff0000' }, { type: 'plush', tint: '#ff0000' })
+    ).toBe(true)
+    expect(sameTexture({ type: 'plush', tint: '#ff0000' }, { type: 'plush' })).toBe(false)
+  })
+
+  it('paints the plush nap in the tint colour instead of white', () => {
+    const plain = createTextureShader({ type: 'plush' }, 'clip', 'inst')
+    const tinted = createTextureShader({ type: 'plush', tint: '#4c8dfb' }, 'clip', 'inst')
+    // Untinted fur is a white film: rgb constants 1,1,1 with alpha 1.4*turb.
+    expect(plain.defs).toContain('0 0 0 0 1 0 0 0 0 1 0 0 0 0 1')
+    expect(plain.defs).toContain('stop-color="#ffffff"')
+    expect(tinted.defs).not.toContain('0 0 0 0 1 0 0 0 0 1')
+    expect(tinted.defs).toContain('0 0 0 0 0.298 0 0 0 0 0.553 0 0 0 0 0.984')
+    expect(tinted.defs).toContain('stop-color="#4c8dfb"')
+    // The dark depth gradient stays black: tinting the shadow would tint the
+    // tonal range the material is measured on.
+    expect(tinted.defs).toContain('stop-color="#000000"')
   })
 
   it('returns empty shader for none', () => {

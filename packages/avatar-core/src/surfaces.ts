@@ -14,12 +14,99 @@ export type SurfaceType =
   | 'drop'
   | 'flower'
   | 'dot'
+  | 'softDot'
 
 /** Visual character of the WebGL dot: classic is firmer, softer is plush, plush is toy-like. */
 export type DotSoftness = 'classic' | 'softer' | 'plush'
 
 /** Softness applied when a dot surface omits it (also the editor default). */
 export const defaultDotSoftness: DotSoftness = 'plush'
+
+/** Detail budget of the SVG blob renderer; mirrors the app-side RenderQuality. */
+export type SoftDotQuality = 'low' | 'medium' | 'high' | 'ultra'
+
+/**
+ * Persisted knobs of the procedural 2.5D blob surface.
+ *
+ * This is deliberately a flat, self-contained contract: the richer renderer
+ * model (`BlobConfig`, with lighting math and material profiles) lives in the
+ * app's rendering layer and is derived from these fields. avatar-core stays
+ * free of any rendering dependency.
+ */
+export type SoftDotSurfaceParams = {
+  seed: number
+  /** Material preset id, e.g. `plush-blue`. */
+  presetId: string
+  color: string
+  roughness: number
+  sheen: number
+  fiber: number
+  grain: number
+  macroNoise: number
+  microNoise: number
+  specular: number
+  lightX: number
+  lightY: number
+  intensity: number
+  rimStrength: number
+  cavityStrength: number
+  quality: SoftDotQuality
+  face: boolean
+  /** Elevation of the key light above the shape plane. */
+  lightZ: number
+  /** Falloff of the key light: 0 hard, 1 very broad. */
+  softness: number
+  /** Light that never falls to zero, so the shadow side stays alive. */
+  ambient: number
+  /** Fill contribution relative to the key. */
+  fillIntensity: number
+  /** Ambient-occlusion approximation; deliberately very light. */
+  aoStrength: number
+  /** Micro colour variation; the elegant range is 0.01 to 0.05. */
+  colorVariation: number
+  /** Amplitude of the seeded normal deformation. */
+  deformation: number
+  /** How many overlapping colour fields the material paints, 1 to 5. */
+  colorSpots: number
+  /** Shading path: sampled field, or the per-pixel SVG filter. */
+  renderer: SoftDotRenderer
+}
+
+/** Which shading path paints the dot body. */
+export type SoftDotRenderer = 'field' | 'perPixel'
+
+export const softDotRenderers: SoftDotRenderer[] = ['field', 'perPixel']
+
+export const softDotQualities: SoftDotQuality[] = ['low', 'medium', 'high', 'ultra']
+
+export const defaultSoftDotParams: SoftDotSurfaceParams = {
+  seed: 918273,
+  presetId: 'soft-blue',
+  color: '#2f8cff',
+  roughness: 0.72,
+  sheen: 0.26,
+  fiber: 0.3,
+  grain: 0.16,
+  macroNoise: 0.34,
+  microNoise: 0.18,
+  specular: 0.3,
+  lightX: -0.42,
+  lightY: -0.58,
+  intensity: 0.92,
+  rimStrength: 0.42,
+  cavityStrength: 0.38,
+  quality: 'ultra',
+  face: true,
+  lightZ: 0.7,
+  softness: 0.62,
+  ambient: 0.2,
+  fillIntensity: 0.34,
+  aoStrength: 0.16,
+  colorVariation: 0.04,
+  deformation: 0.05,
+  colorSpots: 4,
+  renderer: 'field',
+}
 
 /** Parameters of the WebGL "dot" surface (OpenAI-dots-style 3D blob). */
 export type DotSurfaceParams = {
@@ -71,6 +158,13 @@ export type SurfaceConfig = {
   petalDepth?: number
   /** WebGL dot-surface parameters; required meaning only when type is 'dot'. */
   dot?: DotSurfaceParams
+  /** Procedural 2.5D DOT parameters; required meaning only when type is 'softDot'. */
+  softDot?: SoftDotSurfaceParams
+  /**
+   * @deprecated Legacy read alias for `softDot`, kept so documents exported
+   * before the DOT rename still load. Never written by this version.
+   */
+  blob2d?: SoftDotSurfaceParams
 }
 
 export type SurfaceSample = {
@@ -139,6 +233,14 @@ export const surfacePresets: Record<SurfaceType, SurfaceConfig> = {
     roundness: 1,
     dot: { ...defaultDotSurfaceParams },
   },
+  softDot: {
+    type: 'softDot',
+    width: 250,
+    height: 250,
+    depth: 250,
+    roundness: 1,
+    softDot: { ...defaultSoftDotParams },
+  },
 }
 
 export const surfaceLabels: Record<SurfaceType, string> = {
@@ -155,7 +257,18 @@ export const surfaceLabels: Record<SurfaceType, string> = {
   drop: 'Goutte',
   flower: 'Fleur',
   dot: 'Dot 3D',
+  softDot: 'DOT soft',
 }
+
+/**
+ * Resolve a surface type to its current name.
+ *
+ * `blob2d` was the pre-rename name of the DOT surface. Parsing normalizes it
+ * away, but the export runtime hands its raw payload straight to the geometry
+ * without a parse step, so the mapping is applied at the switch as well.
+ */
+const canonicalSurfaceType = (type: SurfaceType): SurfaceType =>
+  (type as string) === 'blob2d' ? 'softDot' : type
 
 const hexColorPattern = /^#[0-9a-f]{6}$/i
 
@@ -190,6 +303,87 @@ export const parseDotParams = (value: unknown): DotSurfaceParams | undefined => 
     eyeOffsetY: Math.max(-2, Math.min(2, candidate.eyeOffsetY!)),
     seed: Math.max(-1000, Math.min(1000, candidate.seed!)),
     ...(candidate.softness === undefined ? {} : { softness: candidate.softness }),
+  }
+}
+
+const finiteNumber = (value: unknown): value is number =>
+  typeof value === 'number' && Number.isFinite(value)
+
+export const parseSoftDotParams = (value: unknown): SoftDotSurfaceParams | undefined => {
+  if (!value || typeof value !== 'object') return undefined
+  const candidate = value as Partial<SoftDotSurfaceParams>
+  const numbers = [
+    candidate.seed,
+    candidate.roughness,
+    candidate.sheen,
+    candidate.fiber,
+    candidate.grain,
+    candidate.macroNoise,
+    candidate.microNoise,
+    candidate.specular,
+    candidate.lightX,
+    candidate.lightY,
+    candidate.intensity,
+    candidate.rimStrength,
+    candidate.cavityStrength,
+  ]
+  if (numbers.some(entry => !finiteNumber(entry))) return undefined
+  if (typeof candidate.color !== 'string' || !hexColorPattern.test(candidate.color))
+    return undefined
+  if (typeof candidate.presetId !== 'string' || !candidate.presetId) return undefined
+  if (!softDotQualities.includes(candidate.quality as SoftDotQuality)) return undefined
+  if (typeof candidate.face !== 'boolean') return undefined
+  // The lighting and surface knobs were added after the first documents
+  // shipped. They are optional on read so an existing project keeps loading
+  // unchanged, which is the compatibility rule the schema asks for.
+  const optionalNumbers = [
+    candidate.lightZ,
+    candidate.softness,
+    candidate.ambient,
+    candidate.fillIntensity,
+    candidate.aoStrength,
+    candidate.colorVariation,
+    candidate.deformation,
+    candidate.colorSpots,
+  ]
+  const definedOptional = optionalNumbers.filter(entry => entry !== undefined)
+  if (definedOptional.some(entry => !finiteNumber(entry!))) return undefined
+  const unit = (entry: number) => Math.max(0, Math.min(1, entry))
+  const withDefault = (entry: number | undefined, fallback: number) =>
+    entry === undefined ? fallback : entry
+  return {
+    seed: Math.max(0, Math.min(2147483646, Math.trunc(candidate.seed!))),
+    presetId: candidate.presetId,
+    color: candidate.color.toLowerCase(),
+    roughness: unit(candidate.roughness!),
+    sheen: unit(candidate.sheen!),
+    fiber: unit(candidate.fiber!),
+    grain: unit(candidate.grain!),
+    macroNoise: unit(candidate.macroNoise!),
+    microNoise: unit(candidate.microNoise!),
+    specular: unit(candidate.specular!),
+    lightX: Math.max(-1, Math.min(1, candidate.lightX!)),
+    lightY: Math.max(-1, Math.min(1, candidate.lightY!)),
+    intensity: unit(candidate.intensity!),
+    rimStrength: unit(candidate.rimStrength!),
+    cavityStrength: unit(candidate.cavityStrength!),
+    quality: candidate.quality as SoftDotQuality,
+    face: candidate.face,
+    lightZ: Math.max(0.05, Math.min(1, withDefault(candidate.lightZ, defaultSoftDotParams.lightZ))),
+    softness: unit(withDefault(candidate.softness, defaultSoftDotParams.softness)),
+    ambient: unit(withDefault(candidate.ambient, defaultSoftDotParams.ambient)),
+    fillIntensity: unit(withDefault(candidate.fillIntensity, defaultSoftDotParams.fillIntensity)),
+    aoStrength: unit(withDefault(candidate.aoStrength, defaultSoftDotParams.aoStrength)),
+    colorVariation: unit(
+      withDefault(candidate.colorVariation, defaultSoftDotParams.colorVariation)
+    ),
+    deformation: unit(withDefault(candidate.deformation, defaultSoftDotParams.deformation)),
+    colorSpots: Math.round(
+      Math.max(1, Math.min(5, withDefault(candidate.colorSpots, defaultSoftDotParams.colorSpots)))
+    ),
+    renderer: softDotRenderers.includes(candidate.renderer as SoftDotRenderer)
+      ? (candidate.renderer as SoftDotRenderer)
+      : defaultSoftDotParams.renderer,
   }
 }
 
@@ -499,9 +693,13 @@ export const surfacePointAt = (
   latitude: number
 ): Point3 => {
   const { width, height, depth } = config
-  switch (config.type) {
+  switch (canonicalSurfaceType(config.type)) {
     case 'sphere':
     case 'mickey':
+    // The DOT surface has no 3D surface of its own; it rides the shared
+    // spherical carrier so the facial coordinate system keeps working across
+    // surfaces.
+    case 'softDot':
       return superellipsoid(longitude, latitude, width, height, depth, 1, 1)
     case 'cube':
       return cube(config, longitude, latitude)
@@ -733,9 +931,10 @@ export const surfaceFrontSampleAt = (
   const radiusY = config.height / 2 || 1
   const radiusZ = config.depth / 2 || 1
 
-  switch (config.type) {
+  switch (canonicalSurfaceType(config.type)) {
     case 'sphere':
     case 'mickey':
+    case 'softDot':
       return ellipsoidFrontSample(x, y, radiusX, radiusY, radiusZ)
 
     case 'cube':
