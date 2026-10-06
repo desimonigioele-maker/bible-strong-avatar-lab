@@ -131,7 +131,8 @@ import {
 } from '@/features/rendering/renderedScene'
 import { paintPixelAvatar } from '@/features/rendering/pixelRenderer'
 import { defaultDotSurfaceParams } from '@/features/avatar/surfaces'
-import { renderDotSnapshotPng } from '@/features/rendering/dotSnapshot'
+import { renderBlobSnapshotPng } from '@/features/rendering/blob/blobSnapshot'
+import { blobConfigFromLegacyDot } from '@/features/rendering/blob/blobConfig'
 import {
   createStudioDocumentStore,
   loadStudioDocument,
@@ -419,13 +420,20 @@ export function useStudioController() {
     const eyeOffset = eyeAmbientEnabled
       ? ambientEyeOffset(pose.expression, lastEyeAmbientElapsed.current, resolvedAmbientStrength)
       : { x: 0, y: 0 }
+    // The legacy dot surface carried its own eye offsets for its 3D eyes;
+    // with the dot rendered as a body-only impostor, they fold into the
+    // fork's eye layer so persisted offsets keep their meaning.
+    const legacyDot = surfaceRef.current.type === 'dot' ? surfaceRef.current.dot : null
     const renderPose = avatar
       ? poseWithAvatarEyes(renderedExpression, avatar.eyes ?? defaultAvatarEyes)
       : poseFromExpression(renderedExpression)
     const geometry = renderAvatar(renderPose, surfaceRef.current, blink ?? blinkValue.get(), {
       includeWire: showWireRef.current || highlightRef.current === 'head',
       bodyNodes: bodyNodesRef.current,
-      eyeOffset,
+      eyeOffset: {
+        x: eyeOffset.x + (legacyDot?.eyeOffsetX ?? 0),
+        y: eyeOffset.y + (legacyDot?.eyeOffsetY ?? 0),
+      },
     })
     paintRenderedScene(renderedScene, geometry)
     paintRenderedOffset(
@@ -1823,31 +1831,37 @@ export function useStudioController() {
   const takePicture = () => {
     setPhotoFlash(current => current + 1)
     requestAnimationFrame(() => {
-      // The dot surface lives in WebGL, so snapshots rasterize the 3D scene
-      // offscreen instead of serializing the SVG paths.
+      // The dot surface is a material model now: snapshots rasterize the very
+      // SVG markup the export ships, deterministically and without a GPU.
       if (surfaceRef.current.type === 'dot') {
         const size = Number(snapshotSize)
-        const png = renderDotSnapshotPng(surfaceRef.current.dot ?? defaultDotSurfaceParams, size)
-        if (snapshotFormat === 'png') {
-          const image = new Image()
-          image.onload = () => {
-            const canvas = document.createElement('canvas')
-            canvas.width = size
-            canvas.height = size
-            canvas.getContext('2d')?.drawImage(image, 0, 0)
-            canvas.toBlob(blob => {
-              if (blob) downloadBlob(blob, snapshotFileName(activeAvatar.name, 'png'))
-            }, 'image/png')
-          }
-          image.src = png
-        } else {
-          downloadBlob(
-            new Blob([serializePixelSnapshot(activeAvatar.name, png, size)], {
-              type: 'image/svg+xml;charset=utf-8',
-            }),
-            snapshotFileName(activeAvatar.name)
-          )
-        }
+        renderBlobSnapshotPng(
+          blobConfigFromLegacyDot(surfaceRef.current.dot ?? defaultDotSurfaceParams),
+          size
+        )
+          .then(png => {
+            if (snapshotFormat === 'png') {
+              const image = new Image()
+              image.onload = () => {
+                const canvas = document.createElement('canvas')
+                canvas.width = size
+                canvas.height = size
+                canvas.getContext('2d')?.drawImage(image, 0, 0)
+                canvas.toBlob(blob => {
+                  if (blob) downloadBlob(blob, snapshotFileName(activeAvatar.name, 'png'))
+                }, 'image/png')
+              }
+              image.src = png
+            } else {
+              downloadBlob(
+                new Blob([serializePixelSnapshot(activeAvatar.name, png, size)], {
+                  type: 'image/svg+xml;charset=utf-8',
+                }),
+                snapshotFileName(activeAvatar.name)
+              )
+            }
+          })
+          .catch(() => undefined)
         return
       }
       if (snapshotFormat === 'png') downloadSnapshotPng()

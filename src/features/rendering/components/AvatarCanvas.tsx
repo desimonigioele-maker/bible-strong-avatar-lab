@@ -1,6 +1,6 @@
 import { RotateCcw } from 'lucide-react'
 import { motion } from 'motion/react'
-import { Suspense, useEffect, useRef, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 
 import { Button } from '@/components/ui/button'
 import { useStudioLanguage } from '@/i18n'
@@ -44,7 +44,9 @@ import {
 } from '@/features/avatar/manipulationSession'
 import { defaultDotSurfaceParams, type SurfaceConfig } from '@/features/avatar/surfaces'
 import { createTextureShader, type AvatarTextureConfig } from '@/features/avatar/texture'
-import { DotBody } from '@/features/rendering/components/DotBody'
+import { DotWebglCanvas } from '@/features/rendering/components/DotWebglCanvas'
+import { blobConfigFromLegacyDot } from '@/features/rendering/blob/blobConfig'
+import { softDotParamsToConfig } from '@/features/avatar/softDot'
 import { type CanvasPreviewTarget } from '@/features/rendering/canvasPreview'
 import { LivePixelAvatarCanvas } from '@/features/rendering/components/PixelAvatarCanvas'
 import { type RenderedRotationGizmo } from '@/features/rendering/renderedRotationGizmo'
@@ -599,7 +601,8 @@ export function AvatarCanvas({
   })()
   const textureShader = createTextureShader(texture, 'avatar-body-clip', 'stage')
   const isDotSurface = surface.type === 'dot'
-  const textureEnabled = texture.type !== 'none' && !isDotSurface
+  const isSoftDotSurface = surface.type === 'softDot'
+  const textureEnabled = texture.type !== 'none' && !isDotSurface && !isSoftDotSurface
 
   const toSvg = (event: React.PointerEvent<SVGElement>): readonly [number, number] => {
     const rectangle = svgRef.current!.getBoundingClientRect()
@@ -802,14 +805,35 @@ export function AvatarCanvas({
       )}
       {surface.type === 'dot' && (
         <div className="dot-webgl-canvas" aria-hidden="true">
-          <Suspense fallback={null}>
-            <DotBody params={surface.dot ?? defaultDotSurfaceParams} />
-          </Suspense>
+          {/* Legacy OpenAI-dots params map onto the shared material model;
+              the WebGL2 impostor renders them like every other dot. */}
+          <DotWebglCanvas
+            config={blobConfigFromLegacyDot(surface.dot ?? defaultDotSurfaceParams)}
+            idPrefix="studio-dot"
+          />
+        </div>
+      )}
+      {isSoftDotSurface && (
+        <div className="softdot-canvas" aria-hidden="true">
+          {/* The live pose is what makes the dot a material mode over the
+              fork geometry: the surface, its perspective and the head
+              rotation are the same ones the eyes and the silhouette use.
+              DotWebglCanvas prefers the WebGL2 impostor and falls back to
+              the SVG engine with this same config. */}
+          <DotWebglCanvas
+            config={softDotParamsToConfig(
+              surface.softDot,
+              poseWithAvatarEyes(expression, avatarEyes)
+            )}
+            idPrefix="studio-blob"
+            quality={surface.softDot?.quality}
+            texture={texture}
+          />
         </div>
       )}
       <svg
         ref={svgRef}
-        className={`avatar${isDotSurface ? ' is-dot-3d' : ''}`}
+        className={`avatar${isDotSurface ? ' is-dot-3d' : ''}${isSoftDotSurface ? ' is-softdot' : ''}`}
         viewBox="-150 -150 300 300"
         role="img"
         aria-label={t('Avatar procédural')}
