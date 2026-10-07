@@ -17,6 +17,29 @@ The output is one self-contained HTML file, roughly 5 MB: 64 cells (4 shape fami
 per-pixel renderer. It is ignored by Prettier and is a generated artifact; nothing in the repo depends
 on it.
 
+## Headless oracle (Playwright)
+
+The static gallery cannot host WebGL2, so the fourth column is verified against the running app:
+
+```bash
+pnpm build
+node docs/acceptance/dot-material-lab/verify-dot-lab-oracle.mjs
+```
+
+Self-contained like `../dot-surface/verify-dot-surface.mjs` (embedded static server over `dist/`, no
+test runner, no repo dependency on Playwright — it expects a playwright install at
+`/tmp/dot-verify/node_modules/playwright` or `PLAYWRIGHT_PATH`). It opens `#dot-lab`, presses Compare,
+runs the in-page oracle and asserts twelve checks: four slots × 128 cells, the flat control passing
+range while failing texture, every field / per-pixel / webgl2 verdict green, painted webgl2 canvases
+and a clean console. It exits non-zero on any failure and writes `dot-lab-oracle-*.png` beside
+itself.
+
+One environment rule the script encodes: the texture metric is **rasterizer-dependent**. Chromium's
+software rasterizer renders the SVG slots slightly softer and field measures ~3.44 — under the 3.5
+floor, the same CPU-backend artifact documented in `docs/blob-rendering.md`. The script therefore
+launches full Chromium with Metal GPU rasterization (`channel: 'chromium'`); on a GPU-less machine
+L10 reports the software numbers as they are.
+
 ## Reading it
 
 Every cell can show the **flat reference**: a single radial gradient over the material palette,

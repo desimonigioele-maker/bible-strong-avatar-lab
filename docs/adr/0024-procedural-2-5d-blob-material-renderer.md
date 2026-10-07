@@ -77,8 +77,9 @@ rebuilds the surface per pixel — silhouette LUT from the fork's own geometry o
 normal, seeded deformation, the very `createLightRig` rig the SVG path builds, the `evaluateColor`
 ramp reproduced in GLSL through an `oklabMix`, cavity weighted against the light, three scales of
 lit noise — so coherence is structural: both renderers read the same palette, the same lights, the
-same field and the same silhouette source. Scored against the same oracle in a browser harness:
-sat 0.774 / rng 131.8 / tex 3.94, all green at `ultra`. The SVG engine keeps its role as the
+same field and the same silhouette source. Scored against the same oracle in the lab's own webgl2
+column (one shared GL context painted at the oracle's raster size and blitted into per-cell
+canvases): sat 0.767 / rng 130.5 / tex 5.49, all green at `ultra`. The SVG engine keeps its role as the
 fallback, the vector exporter and the lab's measurement truth; the runtime exports dots through it
 exclusively, which also fixed a latent bug where the runtime handed the whole surface document to
 `blobConfigFromParams` and every exported dot silently rendered with the default material. The

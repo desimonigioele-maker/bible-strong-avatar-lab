@@ -26,9 +26,9 @@ import {
   verdictOf,
   type DotMetrics,
 } from '../dotLabMetrics'
-import { rasterizeSvg } from '../dotLabRaster'
+import { rasterizeSvg, readRasterCanvas } from '../dotLabRaster'
 
-export type LabSlot = 'flat' | 'field' | 'perPixel'
+export type LabSlot = 'flat' | 'field' | 'perPixel' | 'webgl2'
 
 type SlotSummary = {
   slot: LabSlot
@@ -40,9 +40,10 @@ const SLOT_LABEL: Record<LabSlot, string> = {
   flat: 'flat control',
   field: 'field',
   perPixel: 'per-pixel',
+  webgl2: 'webgl2',
 }
 
-const SLOT_ORDER: LabSlot[] = ['flat', 'field', 'perPixel']
+const SLOT_ORDER: LabSlot[] = ['flat', 'field', 'perPixel', 'webgl2']
 
 const mark = (pass: boolean) => (pass ? '✓' : '✕')
 
@@ -102,7 +103,7 @@ const SlotReport = ({ summary }: { summary: SlotSummary }) => {
 }
 
 export type DotLabMetricsProps = {
-  /** The grid element; cells are found through `[data-slot] svg`. */
+  /** The grid element; cells are found through `[data-slot]`. */
   containerRef: RefObject<HTMLElement | null>
   /**
    * Identifies the current contents of the grid.
@@ -150,10 +151,14 @@ export function DotLabMetrics({ containerRef, revision }: DotLabMetricsProps) {
     let measured = 0
 
     for (const holder of slots) {
-      const svg = holder.querySelector<SVGSVGElement>('svg')
       const slot = holder.dataset.slot as LabSlot | undefined
-      if (!svg || !slot) continue
-      const metric = await rasterizeSvg(svg)
+      if (!slot) continue
+      // The WebGL2 column is pixels already (one shared context blitted into
+      // a 2D canvas); the SVG slots are re-rasterized. Canvas is checked
+      // first so a WebGL cell is never measured through the wrong path.
+      const canvas = holder.querySelector('canvas')
+      const svg = holder.querySelector('svg')
+      const metric = canvas ? readRasterCanvas(canvas) : svg ? await rasterizeSvg(svg) : null
       // One unreadable cell must not blank the report: it is skipped and the
       // remaining cells still average together.
       if (!metric || metric.samples === 0) continue

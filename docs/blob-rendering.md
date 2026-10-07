@@ -288,9 +288,12 @@ markup of the field renderer and its detail evaporates below the size it is mean
 The studio's live dot renders through an adapter (`DotWebglCanvas`): a **WebGL2 impostor** when
 `canvas.getContext('webgl2')` succeeds, the SVG engine with the very same config otherwise. The
 adapter owns the fallback, so a renderer choice is never a different material. Exports always go
-through the SVG engine — vector fidelity is the contract — and the lab measures the SVG paths; the
-impostor was scored against the same oracle in a browser harness over the full sixteen-material
-matrix at `ultra`: **sat 0.774 / rng 131.8 / tex 3.94**, all verdicts green, 128/128 cells rendered.
+through the SVG engine — vector fidelity is the contract — and the impostor is measured by the lab
+itself: the page has a fourth **webgl2** column whose cells are painted by one shared detached GL
+context at the oracle's raster size (`dotLabWebgl.ts`) and blitted into per-cell 2D canvases, so the
+oracle reads them back exactly like the SVG slots instead of scoring them in a throwaway harness.
+Over the full sixteen-material matrix at `ultra`: **sat 0.767 / rng 130.5 / tex 5.49**, all verdicts
+green, 128/128 cells rendered.
 
 The impostor (`blobWebgl2.ts`) is one fullscreen triangle and one fragment shader. There is no
 scene graph and no Three.js — the dependency is removed from `package.json`, and the app bundle
@@ -374,11 +377,20 @@ and an unclipped filter box.
 The gallery is scored against an **oracle** (`dotLabMetrics.ts`) whose thresholds are derived from
 the reference artwork: mean saturation ≥ 0.65 (chromatic cells only), p95−p05 luminance range ≥ 100,
 and mean local texture ≥ 3.5. Each slot prints ✓/✕ per metric, and the flat reference is the
-control — it must pass range and fail texture, otherwise the metric is not measuring material. As of
-the acceptance run (sixteen materials, 128 cells per slot): flat 0.755 / 120.5 / 1.31, field
-0.710 / 101.9 / 3.54, per-pixel 0.713 / 100.1 / 5.31 — all six renderer verdicts green. The lab
-cells render at `ultra` with the plush finish tinted to the material's own highlight
-(`labTextureFor`), so the texture the oracle measures is the texture a shipped dot actually has.
+control — it must pass range and fail texture, otherwise the metric is not measuring material. The
+lab page measures all four of its slots — flat, field, per-pixel and the webgl2 column — through
+that same oracle, 128 cells per slot. As of the acceptance run (sixteen materials, 128 cells per
+slot): flat 0.755 / 120.5 / 1.31 (the control: range passes, texture fails as it must), field
+0.710 / 101.9 / 3.54, per-pixel 0.713 / 100.1 / 5.31, webgl2 0.767 / 130.5 / 5.49 — every renderer
+verdict green. The lab cells render at `ultra` with the plush finish tinted to the material's own
+highlight (`labTextureFor`), so the texture the oracle measures is the texture a shipped dot
+actually has.
+
+One constraint the numbers encode: every slot must be read back through the **default** 2D canvas
+backend. The `willReadFrequently` hint switches the readback onto the CPU path, whose rounding on
+antialiased and blended pixels moves `texture` on bit-identical input (measured: field 3.54 → 3.44,
+per-pixel 5.31 → 6.04 — enough to flip the field renderer's verdict against the committed gallery),
+so the lab deliberately does not use it.
 
 The sixteen-material set forced one palette-level correction: the pastel variants (soft pink and
 purple, the whole plush ramp, aurora) measured 0.49-0.63 saturation and 74-95 range — visibly washed

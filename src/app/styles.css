@@ -4081,11 +4081,12 @@ p {
   aspect-ratio: 1;
 }
 
-/* Three panels in compare mode, two otherwise. A fixed column count keeps the
-   panels comparable between modes, which is the entire point of the view. */
+/* Four panels in compare mode (flat / field / per-pixel / webgl2), fewer
+   otherwise. A fixed column count keeps the panels comparable between modes,
+   which is the entire point of the view. */
 .dot-lab-compare {
   display: grid;
-  grid-template-columns: repeat(3, 1fr);
+  grid-template-columns: repeat(4, 1fr);
   background: repeating-conic-gradient(#1b2027 0% 25%, #191d23 0% 50%) 50% / 14px 14px;
 }
 
@@ -4098,6 +4099,17 @@ p {
    the three-column comparison. */
 .dot-lab-compare > span {
   display: block;
+}
+
+/* The WebGL2 column without WebGL2: an absence, drawn as one, so it can
+   never be mistaken for a measured cell. */
+.dot-lab-webgl-na {
+  display: flex;
+  aspect-ratio: 1;
+  align-items: center;
+  justify-content: center;
+  font-size: 10px;
+  color: #6f7a86;
 }
 
 .dot-lab-cell figcaption {

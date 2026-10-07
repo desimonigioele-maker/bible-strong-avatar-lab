@@ -17,7 +17,9 @@
  * resample the surface hundreds of times for nothing.
  */
 
-import { useRef, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
+
+import type { AvatarTextureConfig } from '@bible-strong/avatar-core'
 
 import { createBlobMaterial } from '@/features/rendering/blob'
 import { buildSurfaceField, type SurfaceField } from '@/features/rendering/blob/blobSurfaceField'
@@ -25,6 +27,8 @@ import { randomizeBlobConfig } from '@/features/rendering/blob/blobRandomize'
 import { blobDebugFlags, type BlobDebugFlag } from '@/features/rendering/blob/blobDebug'
 import { BlobRenderer } from '@/features/rendering/blob/blobRenderer'
 import { DotLabMetrics } from '@/features/rendering/components/DotLabMetrics'
+import { disposeLabWebgl, renderLabWebglCell } from '@/features/rendering/dotLabWebgl'
+import { hasWebgl2 } from '@/features/rendering/blob/blobWebgl2'
 import {
   labCellConfig,
   labLights,
@@ -60,15 +64,44 @@ function FlatReference({ config, idPrefix }: { config: BlobConfig; idPrefix: str
   )
 }
 
-type LabMode = 'field' | 'perPixel' | 'compare'
+type LabMode = 'field' | 'perPixel' | 'webgl2' | 'compare'
+
+const LAB_MODE_LABEL: Record<LabMode, string> = {
+  field: 'Field',
+  perPixel: 'Per-pixel',
+  webgl2: 'WebGL2',
+  compare: 'Compare',
+}
+
+/**
+ * One WebGL2 cell: a 2D canvas painted by the lab's single shared GL
+ * context (`dotLabWebgl`). It is a still frame — motion is off in the lab —
+ * so one draw per commit is the whole lifecycle; there is no rAF loop here
+ * and no React state at all.
+ */
+function LabWebglCell({ config, texture }: { config: BlobConfig; texture: AvatarTextureConfig }) {
+  const canvasRef = useRef<HTMLCanvasElement>(null)
+  useEffect(() => {
+    const canvas = canvasRef.current
+    if (canvas) renderLabWebglCell(config, canvas, texture)
+  })
+  return <canvas ref={canvasRef} className="dot-lab-preview" aria-hidden="true" />
+}
 
 export function DotMaterialLab() {
   const [mode, setMode] = useState<LabMode>('field')
   const [debug, setDebug] = useState<BlobDebugFlag[]>([])
   const [showFlat, setShowFlat] = useState(true)
   const [seedBump, setSeedBump] = useState(0)
+  // One capability decision for the whole page: without WebGL2 the column
+  // shows its absence instead of reporting a number it did not produce.
+  const [webgl2] = useState(() => hasWebgl2())
   const gridRef = useRef<HTMLDivElement>(null)
   const pose = labRestPose()
+
+  // The shared context belongs to this page, not to the app: releasing it
+  // on unmount keeps hash-navigation from leaking a context per visit.
+  useEffect(() => () => disposeLabWebgl(), [])
 
   const fields = new Map<string, SurfaceField>()
   for (const shape of labShapes) {
@@ -77,24 +110,34 @@ export function DotMaterialLab() {
   }
 
   // `data-slot` is what the metrics panel reads: it identifies which of the
-  // three renders a cell is, without the renderer knowing it is measured.
-  const renderCell = (config: BlobConfig, key: string, slot: 'field' | 'perPixel') => (
+  // renders a cell is, without the renderer knowing it is measured. The
+  // WebGL2 slot is a canvas painted by the shared context; every other slot
+  // is SVG and is re-rasterized by the oracle.
+  const renderCell = (config: BlobConfig, key: string, slot: 'field' | 'perPixel' | 'webgl2') => (
     <span
       key={key}
       data-slot={slot}
       data-chroma={labMaterialChromatic(config.material) ? '1' : '0'}
     >
-      <BlobRenderer
-        config={config}
-        quality={labQuality}
-        pose={pose}
-        field={fields.get(config.shape.family)}
-        idPrefix={key}
-        withExpression={false}
-        groundShadow={false}
-        texture={labTextureFor(config.material)}
-        debug={debug}
-      />
+      {slot === 'webgl2' ? (
+        webgl2 ? (
+          <LabWebglCell config={config} texture={labTextureFor(config.material)} />
+        ) : (
+          <span className="dot-lab-webgl-na">no WebGL2</span>
+        )
+      ) : (
+        <BlobRenderer
+          config={config}
+          quality={labQuality}
+          pose={pose}
+          field={fields.get(config.shape.family)}
+          idPrefix={key}
+          withExpression={false}
+          groundShadow={false}
+          texture={labTextureFor(config.material)}
+          debug={debug}
+        />
+      )}
     </span>
   )
 
@@ -103,14 +146,14 @@ export function DotMaterialLab() {
       <header className="dot-lab-header">
         <h1>DOT MATERIAL LAB</h1>
         <div className="dot-lab-controls">
-          {(['field', 'perPixel', 'compare'] as const).map(option => (
+          {(['field', 'perPixel', 'webgl2', 'compare'] as const).map(option => (
             <button
               key={option}
               type="button"
               className={mode === option ? 'is-active' : ''}
               onClick={() => setMode(option)}
             >
-              {option === 'field' ? 'Field' : option === 'perPixel' ? 'Per-pixel' : 'Compare'}
+              {LAB_MODE_LABEL[option]}
             </button>
           ))}
           <label className="dot-lab-toggle">
@@ -153,7 +196,8 @@ export function DotMaterialLab() {
         </div>
         <p className="dot-lab-hint">
           {labShapes.length} shapes × {labMaterials.length} materials × {labLights.length} lighting
-          setups · quality {labQuality} · <a href="#studio">back to the studio</a>
+          setups · quality {labQuality} · webgl2 {webgl2 ? 'on' : 'unavailable'} ·{' '}
+          <a href="#studio">back to the studio</a>
         </p>
         <DotLabMetrics
           containerRef={gridRef}
@@ -184,16 +228,29 @@ export function DotMaterialLab() {
                   }
                   const fieldConfig = build('field')
                   const pixelConfig = build('perPixel')
+                  // The impostor is its own path — it ignores
+                  // `config.renderer` — but it reads the same lab pose the
+                  // SVG slots are handed, so the silhouette matches.
+                  const webglConfig: BlobConfig = { ...fieldConfig, pose }
                   return (
                     <figure key={key} className="dot-lab-cell">
                       <div className="dot-lab-compare">
                         {showFlat && (
-                          <span data-slot="flat">
+                          <span
+                            data-slot="flat"
+                            data-chroma={labMaterialChromatic(fieldConfig.material) ? '1' : '0'}
+                          >
                             <FlatReference config={fieldConfig} idPrefix={`${key}-flat`} />
                           </span>
                         )}
-                        {mode !== 'perPixel' && renderCell(fieldConfig, `${key}-field`, 'field')}
-                        {mode !== 'field' && renderCell(pixelConfig, `${key}-pixel`, 'perPixel')}
+                        {mode !== 'perPixel' &&
+                          mode !== 'webgl2' &&
+                          renderCell(fieldConfig, `${key}-field`, 'field')}
+                        {mode !== 'field' &&
+                          mode !== 'webgl2' &&
+                          renderCell(pixelConfig, `${key}-pixel`, 'perPixel')}
+                        {(mode === 'webgl2' || mode === 'compare') &&
+                          renderCell(webglConfig, `${key}-webgl2`, 'webgl2')}
                       </div>
                       <figcaption>
                         <strong>{materialId}</strong>
